@@ -264,7 +264,7 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
               val selectedPlaylistId by viewModel.selectedPlaylistId.collectAsStateWithLifecycle()
               val selectedTracks by viewModel.selectedPlaylistTracks.collectAsStateWithLifecycle()
               PlaylistsScreen(
-                playlists = playlists, selectedPlaylistId = selectedPlaylistId, selectedTracks = selectedTracks, artworkLoader = viewModel.artworkLoader,
+                playlists = playlists, selectedPlaylistId = selectedPlaylistId, selectedPlaylistTracks = selectedTracks, artworkLoader = viewModel.artworkLoader,
                 onSelectPlaylist = viewModel::selectPlaylist, onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
                 onRenamePlaylist = viewModel::renamePlaylist, onDeletePlaylist = viewModel::deletePlaylist,
                 onPlayTracks = { track, queue -> viewModel.playAudio(track, queue); navController.navigate(RouteNowPlaying) },
