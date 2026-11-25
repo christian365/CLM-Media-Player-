@@ -1,5 +1,3 @@
-@file:OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
-
 package com.example.ui.screens
 
 import android.app.Activity
@@ -9,64 +7,20 @@ import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.AspectRatio
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ClosedCaption
-import androidx.compose.material.icons.rounded.ClosedCaptionDisabled
-import androidx.compose.material.icons.rounded.FileOpen
-import androidx.compose.material.icons.rounded.Forward10
-import androidx.compose.material.icons.rounded.Nightlight
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Replay10
-import androidx.compose.material.icons.rounded.ScreenRotation
-import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -98,6 +52,7 @@ import com.example.ui.components.VideoGestureOverlay
 import com.example.ui.components.formatDurationMs
 import kotlinx.coroutines.delay
 
+@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
     player: Player?,
@@ -123,11 +78,7 @@ fun VideoPlayerScreen(
     var showSubtitleSheet by remember { mutableStateOf(false) }
     var isLandscapeForced by remember { mutableStateOf(false) }
     var selectedTrack by remember { mutableStateOf<SubtitleTrackOption?>(null) }
-
-    val subtitlePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri: Uri? -> if (uri != null) onPickSidecarSubtitleUri(uri) }
-
+    val subtitlePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? -> if (uri != null) onPickSidecarSubtitleUri(uri) }
     DisposableEffect(activity) {
         val window = activity?.window
         if (window != null) {
@@ -136,68 +87,27 @@ fun VideoPlayerScreen(
             controller.hide(WindowInsetsCompat.Type.systemBars())
         }
         onDispose {
-            if (window != null) {
-                WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
-            }
+            if (window != null) WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
-
     LaunchedEffect(controlsVisible, playbackState.isPlaying, showSubtitleSheet) {
-        if (controlsVisible && playbackState.isPlaying && !showSubtitleSheet) {
-            delay(4000L); controlsVisible = false
-        }
+        if (controlsVisible && playbackState.isPlaying && !showSubtitleSheet) { delay(4000L); controlsVisible = false }
     }
-
     BackHandler { onNavigateBack() }
-
-    VideoGestureOverlay(
-        player = player as ExoPlayer,
-        modifier = modifier.fillMaxSize().background(Color.Black).testTag("video_player_surface"),
-    ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    useController = false
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    keepScreenOn = true
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                }
-            },
-            update = { view ->
-                if (view.player !== player) view.player = player
-                view.resizeMode = when (playbackState.videoResizeMode) {
-                    VideoResizeMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    VideoResizeMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                    VideoResizeMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    VideoResizeMode.RATIO_16_9 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-                    VideoResizeMode.RATIO_4_3 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
-                }
-                SubtitleOverlayHelper.applyStyle(view.subtitleView, preferences.subtitleTextSizeSp, preferences.subtitleStylePreset)
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
-
+    VideoGestureOverlay(player = player as ExoPlayer, modifier = modifier.fillMaxSize().background(Color.Black).testTag("video_player_surface")) {
+        AndroidView(factory = { ctx -> PlayerView(ctx).apply { useController = false; layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT); keepScreenOn = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) } }, update = { view -> if (view.player !== player) view.player = player; view.resizeMode = when (playbackState.videoResizeMode) { VideoResizeMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT; VideoResizeMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL; VideoResizeMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM; VideoResizeMode.RATIO_16_9 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH; VideoResizeMode.RATIO_4_3 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT }; SubtitleOverlayHelper.applyStyle(view.subtitleView, preferences.subtitleTextSizeSp, preferences.subtitleStylePreset) }, modifier = Modifier.fillMaxSize())
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.82f))))) {
                 Row(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp).align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onNavigateBack, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_back_button")) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = playbackState.currentTrack?.title ?: "Video Player", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (playbackState.codecSummary.isNotBlank()) Text(text = playbackState.codecSummary, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_back_button")) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White) }
+                    Column(modifier = Modifier.weight(1f)) { Text(text = playbackState.currentTrack?.title ?: "Video Player", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis); if (playbackState.codecSummary.isNotBlank()) Text(text = playbackState.codecSummary, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.78f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     FormatBadgePill(label = playbackState.videoResizeMode.label, containerColor = Color.White.copy(alpha = 0.16f), contentColor = Color.White, modifier = Modifier.clickable(onClick = onCycleResizeMode))
-                    IconButton(onClick = { isLandscapeForced = !isLandscapeForced; activity?.requestedOrientation = if (isLandscapeForced) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }, modifier = Modifier.minimumInteractiveComponentSize()) {
-                        Icon(Icons.Rounded.ScreenRotation, contentDescription = "Orientation", tint = Color.White)
-                    }
+                    IconButton(onClick = { isLandscapeForced = !isLandscapeForced; activity?.requestedOrientation = if (isLandscapeForced) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }, modifier = Modifier.minimumInteractiveComponentSize()) { Icon(Icons.Rounded.ScreenRotation, contentDescription = "Orientation", tint = Color.White) }
                 }
                 Row(modifier = Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { onSeekBy(-10_000L) }, modifier = Modifier.size(56.dp).testTag("video_rewind_10")) { Icon(Icons.Rounded.Replay10, contentDescription = "Rewind 10s", tint = Color.White, modifier = Modifier.size(36.dp)) }
-                    FilledIconButton(onClick = onTogglePlayPause, shape = CircleShape, colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary), modifier = Modifier.size(68.dp).testTag("video_play_pause")) {
-                        Icon(if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = if (playbackState.isPlaying) "Pause" else "Play", modifier = Modifier.size(38.dp))
-                    }
+                    FilledIconButton(onClick = onTogglePlayPause, shape = CircleShape, colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary), modifier = Modifier.size(68.dp).testTag("video_play_pause")) { Icon(if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = if (playbackState.isPlaying) "Pause" else "Play", modifier = Modifier.size(38.dp)) }
                     IconButton(onClick = { onSeekBy(10_000L) }, modifier = Modifier.size(56.dp).testTag("video_forward_10")) { Icon(Icons.Rounded.Forward10, contentDescription = "Forward 10s", tint = Color.White, modifier = Modifier.size(36.dp)) }
                 }
                 Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp).align(Alignment.BottomCenter)) {
@@ -219,21 +129,14 @@ fun VideoPlayerScreen(
                 }
             }
         }
-
         if (showSubtitleSheet) {
             ModalBottomSheet(onDismissRequest = { showSubtitleSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(text = stringResource(R.string.subtitles_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 12.dp))
                     FilterChip(selected = selectedTrack == null, onClick = { selectedTrack = null; onSelectSubtitleTrack(null) }, label = { Text(stringResource(R.string.subtitles_off)) }, leadingIcon = if (selectedTrack == null) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
-                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        items(playbackState.subtitleTracks) { track ->
-                            FilterChip(selected = selectedTrack == track, onClick = { selectedTrack = track; onSelectSubtitleTrack(track) }, label = { Text(text = track.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }, leadingIcon = if (selectedTrack == track) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth())
-                        }
-                    }
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { items(playbackState.subtitleTracks) { track -> FilterChip(selected = selectedTrack == track, onClick = { selectedTrack = track; onSelectSubtitleTrack(track) }, label = { Text(text = track.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }, leadingIcon = if (selectedTrack == track) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth()) } }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                    OutlinedButton(onClick = { subtitlePickerLauncher.launch(arrayOf("text/*")) }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Rounded.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.load_sidecar_subtitle))
-                    }
+                    OutlinedButton(onClick = { subtitlePickerLauncher.launch(arrayOf("text/*")) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Rounded.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.load_sidecar_subtitle)) }
                 }
             }
         }
