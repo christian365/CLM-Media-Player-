@@ -155,7 +155,7 @@ fun VideoGestureOverlay(
                                 Axis.NONE -> {}
                             }
                         },
-                        onDragEnd = { /* OSD auto-hides via LaunchedEffect */ },
+                        onDragEnd = { },
                         onDragCancel = { axis = Axis.NONE },
                     )
                 }
