@@ -1,0 +1,6 @@
+{
+  "name": "Cadence",
+  "description": "Strictly offline, ad-free audio and video player with broad codec support, embedded lyrics, video subtitles, and MediaStore library indexing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

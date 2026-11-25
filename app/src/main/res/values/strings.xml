@@ -1,0 +1,59 @@
+<resources>
+    <string name="app_name">Cadence</string>
+    <string name="tagline_offline">Strictly Offline • Zero Ads • Zero Trackers</string>
+
+    <!-- Navigation & Tabs -->
+    <string name="nav_library">Library</string>
+    <string name="nav_playlists">Playlists</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Permission Gate -->
+    <string name="perm_title">Local Media Access</string>
+    <string name="perm_subtitle">Cadence reads only audio and video files stored on your device. No internet permission, no analytics, and no telemetry.</string>
+    <string name="perm_grant_button">Grant Media Access</string>
+    <string name="perm_settings_button">Open App Settings</string>
+    <string name="perm_denied_hint">Media permissions were denied. Enable Audio and Video access in system settings to browse your library.</string>
+
+    <!-- Library & Search -->
+    <string name="search_placeholder">Search songs, videos, artists, albums, folders…</string>
+    <string name="rescan_library">Rescan Library</string>
+    <string name="scanning_library">Indexing local media…</string>
+    <string name="empty_library_title">No local media found</string>
+    <string name="empty_library_subtitle">Add audio or video files to your device storage or check your folder filters in Settings.</string>
+    <string name="section_most_played">Most Played</string>
+    <string name="section_recently_added">Recently Added</string>
+    <string name="section_last_played">Last Played</string>
+
+    <!-- Now Playing & Lyrics -->
+    <string name="now_playing">Now Playing</string>
+    <string name="lyrics_tab">Lyrics</string>
+    <string name="artwork_tab">Cover</string>
+    <string name="no_lyrics_found">No embedded lyrics found</string>
+    <string name="no_lyrics_hint">Cadence checks ID3v2 (USLT/SYLT), Vorbis comments, and MP4 ©lyr tags automatically.</string>
+    <string name="synced_lyrics_badge">Synced LRC</string>
+    <string name="plain_lyrics_badge">Embedded Lyrics</string>
+    <string name="queue_title">Playback Queue</string>
+    <string name="equalizer_title">Equalizer &amp; Audio FX</string>
+    <string name="sleep_timer_title">Sleep Timer</string>
+    <string name="speed_pitch_title">Speed &amp; Pitch</string>
+
+    <!-- Video Player & Subtitles -->
+    <string name="subtitles_title">Subtitles &amp; Captions</string>
+    <string name="load_sidecar_subtitle">Load Sidecar Subtitle (.srt / .vtt / .ass)</string>
+    <string name="subtitles_off">Subtitles Off</string>
+
+    <!-- Settings & Edge Cases -->
+    <string name="settings_title">Library &amp; Codec Settings</string>
+    <string name="folder_filters_title">Folder Visibility</string>
+    <string name="codec_settings_title">Decoder &amp; FFmpeg Engine</string>
+    <string name="subtitle_defaults_title">Subtitle Appearance</string>
+    <string name="appearance_title">Theme &amp; Background Studio</string>
+    <string name="theme_mode_label">Brightness Mode</string>
+    <string name="theme_palette_label">Colorful Theme</string>
+    <string name="background_selection_label">Background Style</string>
+    <string name="background_dim_label">Background Scrim Opacity</string>
+    <string name="pick_custom_background">Choose Device Photo</string>
+    <string name="open_theme_studio">Customize Theme &amp; Background</string>
+    <string name="playback_error_dismiss">Dismiss</string>
+    <string name="playback_error_skip">Skip Track</string>
+</resources>
