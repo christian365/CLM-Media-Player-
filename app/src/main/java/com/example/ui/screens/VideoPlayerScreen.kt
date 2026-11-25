@@ -13,7 +13,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,7 +75,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -88,6 +86,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.example.R
@@ -99,6 +98,7 @@ import com.example.playback.SubtitleOverlayHelper
 import com.example.playback.SubtitleTrackOption
 import com.example.playback.VideoResizeMode
 import com.example.ui.components.FormatBadgePill
+import com.example.ui.components.VideoGestureOverlay
 import com.example.ui.components.formatDurationMs
 import kotlinx.coroutines.delay
 
@@ -166,22 +166,11 @@ fun VideoPlayerScreen(
         onNavigateBack()
     }
 
-    Box(
+    VideoGestureOverlay(
+        player = player as ExoPlayer,
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { controlsVisible = !controlsVisible },
-                    onDoubleTap = { offset ->
-                        if (offset.x < size.width / 2f) {
-                            onSeekBy(-10_000L)
-                        } else {
-                            onSeekBy(10_000L)
-                        }
-                    },
-                )
-            }
             .testTag("video_player_surface"),
     ) {
         // Media3 PlayerView with built-in SurfaceView + SubtitleView (CaptionStyleCompat)
@@ -441,21 +430,18 @@ fun VideoPlayerScreen(
                                     },
                                 )
                             }
-                            val hasSelectedSub = playbackState.subtitleTracks.any { it.isSelected }
+                            val hasSubtitles = playbackState.availableSubtitleTracks.isNotEmpty()
                             IconButton(
                                 onClick = { showSubtitleSheet = true },
                                 modifier = Modifier
                                     .minimumInteractiveComponentSize()
-                                    .testTag("video_subtitles_button"),
+                                    .testTag("video_subtitle_button"),
                             ) {
                                 Icon(
-                                    imageVector = if (hasSelectedSub) {
-                                        Icons.Rounded.ClosedCaption
-                                    } else {
-                                        Icons.Rounded.ClosedCaptionDisabled
-                                    },
-                                    contentDescription = stringResource(R.string.subtitles_title),
-                                    tint = if (hasSelectedSub) MaterialTheme.colorScheme.primary else Color.White,
+                                    imageVector = if (hasSubtitles && playbackState.selectedSubtitleTrack != null)
+                                        Icons.Rounded.ClosedCaption else Icons.Rounded.ClosedCaptionDisabled,
+                                    contentDescription = "Subtitles",
+                                    tint = Color.White,
                                 )
                             }
                         }
@@ -463,165 +449,69 @@ fun VideoPlayerScreen(
                 }
             }
         }
-    }
 
-    if (showSubtitleSheet) {
-        VideoSubtitlesBottomSheet(
-            subtitleTracks = playbackState.subtitleTracks,
-            sidecarCount = playbackState.sidecarSubtitles.size,
-            textSizeSp = preferences.subtitleTextSizeSp,
-            stylePreset = preferences.subtitleStylePreset,
-            onDismiss = { showSubtitleSheet = false },
-            onSelectTrack = onSelectSubtitleTrack,
-            onPickSidecarFile = {
-                subtitlePickerLauncher.launch(
-                    arrayOf(
-                        "application/x-subrip",
-                        "text/vtt",
-                        "text/x-ssa",
-                        "text/plain",
-                        "application/octet-stream",
-                        "*/*",
+        // Subtitle Selection Sheet
+        if (showSubtitleSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showSubtitleSheet = false },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.subtitles_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 12.dp),
                     )
-                )
-            },
-            onUpdateTextSize = onUpdateSubtitleSize,
-            onUpdateStylePreset = onUpdateSubtitlePreset,
-        )
-    }
-}
 
-@kotlin.OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun VideoSubtitlesBottomSheet(
-    subtitleTracks: List<SubtitleTrackOption>,
-    sidecarCount: Int,
-    textSizeSp: Float,
-    stylePreset: SubtitleStylePreset,
-    onDismiss: () -> Unit,
-    onSelectTrack: (SubtitleTrackOption?) -> Unit,
-    onPickSidecarFile: () -> Unit,
-    onUpdateTextSize: (Float) -> Unit,
-    onUpdateStylePreset: (SubtitleStylePreset) -> Unit,
-) {
-    val anySelected = subtitleTracks.any { it.isSelected }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.subtitles_title), style = MaterialTheme.typography.titleLarge)
-                if (sidecarCount > 0) {
-                    FormatBadgePill(label = "$sidecarCount sidecar loaded")
-                }
-            }
-
-            OutlinedButton(
-                onClick = onPickSidecarFile,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("pick_sidecar_subtitle_button"),
-            ) {
-                Icon(Icons.Rounded.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.load_sidecar_subtitle))
-            }
-
-            LazyColumn(
-                modifier = Modifier.heightIn(max = 200.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (!anySelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onSelectTrack(null)
-                                onDismiss()
-                            },
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(stringResource(R.string.subtitles_off), style = MaterialTheme.typography.titleSmall)
-                            if (!anySelected) {
-                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-
-                items(subtitleTracks) { trackOpt ->
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (trackOpt.isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainer
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onSelectTrack(trackOpt)
-                                onDismiss()
-                            },
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(trackOpt.label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                            if (trackOpt.isSelected) {
-                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-            }
-
-            HorizontalDivider()
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Subtitle Size", style = MaterialTheme.typography.labelLarge)
-                Text("${textSizeSp.toInt()} sp", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            }
-            Slider(
-                value = textSizeSp,
-                onValueChange = onUpdateTextSize,
-                valueRange = 12f..32f,
-            )
-
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                SubtitleStylePreset.entries.forEach { preset ->
                     FilterChip(
-                        selected = preset == stylePreset,
-                        onClick = { onUpdateStylePreset(preset) },
-                        label = { Text(preset.label) },
+                        selected = playbackState.selectedSubtitleTrack == null,
+                        onClick = { onSelectSubtitleTrack(null) },
+                        label = { Text(stringResource(R.string.subtitles_off)) },
+                        leadingIcon = if (playbackState.selectedSubtitleTrack == null) {
+                            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        } else null,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     )
-                }
-            }
 
-            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                Text("Done")
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 300.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(playbackState.availableSubtitleTracks) { track ->
+                            FilterChip(
+                                selected = playbackState.selectedSubtitleTrack == track,
+                                onClick = { onSelectSubtitleTrack(track) },
+                                label = {
+                                    Text(
+                                        text = track.label,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                                leadingIcon = if (playbackState.selectedSubtitleTrack == track) {
+                                    { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                } else null,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    OutlinedButton(
+                        onClick = { subtitlePickerLauncher.launch(arrayOf("text/*")) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Rounded.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.load_sidecar_subtitle))
+                    }
+                }
             }
         }
     }
