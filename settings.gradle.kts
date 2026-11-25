@@ -2,8 +2,8 @@ pluginManagement {
   repositories {
     google {
       content {
-        includeGroupByRegex("com\\.android.*")
-        includeGroupByRegex("com\\.google.*")
+        includeGroupByRegex("com.android.*")
+        includeGroupByRegex("com.google.*")
         includeGroupByRegex("androidx.*")
       }
     }
@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Cadence"
+rootProject.name = "CLM Media Player"
 
 include(":app")
