@@ -1,3 +1,5 @@
+@file:OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
+
 package com.example.ui.screens
 
 import android.app.Activity
@@ -29,7 +31,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AspectRatio
@@ -97,7 +98,6 @@ import com.example.ui.components.VideoGestureOverlay
 import com.example.ui.components.formatDurationMs
 import kotlinx.coroutines.delay
 
-@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
     player: Player?,
