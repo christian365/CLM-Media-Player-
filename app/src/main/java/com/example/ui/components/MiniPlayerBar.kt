@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +29,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.media.LocalArtworkLoader
 import com.example.playback.PlaybackUiState
-import com.example.ui.theme.LocalCadenceAppearance
 
 @Composable
 fun MiniPlayerBar(
@@ -45,88 +44,67 @@ fun MiniPlayerBar(
         (playbackState.positionMs.toFloat() / playbackState.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
-    val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
-
+    val shape = RoundedCornerShape(10.dp)
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(shape)
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, shape)
             .clickable(onClick = onOpenNowPlaying)
             .testTag("mini_player_bar"),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (hasBg) 0.94f else 1f),
-        tonalElevation = 6.dp,
-        shadowElevation = 4.dp,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
+        shadowElevation = 8.dp,
+        tonalElevation = 0.dp,
     ) {
         Column {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 TrackArtworkThumb(
                     loader = artworkLoader,
                     track = track,
-                    modifier = Modifier.size(46.dp),
-                    cornerRadius = 10.dp,
+                    modifier = Modifier.size(44.dp),
+                    cornerRadius = 6.dp,
                     targetSizePx = 128,
                 )
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center,
-                ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                     Text(
-                        text = track.title,
+                        track.title,
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = "${track.artist} • ${formatExtensionTag(track)}",
+                        "${track.artist} • ${formatExtensionTag(track)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-
-                IconButton(
-                    onClick = onTogglePlayPause,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("mini_player_play_pause"),
-                ) {
+                IconButton(onClick = onTogglePlayPause, modifier = Modifier.testTag("mini_player_play_pause")) {
                     Icon(
-                        imageVector = if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                         contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(30.dp),
                     )
                 }
-
-                IconButton(
-                    onClick = onSkipNext,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("mini_player_next"),
-                ) {
+                IconButton(onClick = onSkipNext, modifier = Modifier.testTag("mini_player_next")) {
                     Icon(
-                        imageVector = Icons.Rounded.SkipNext,
+                        Icons.Rounded.SkipNext,
                         contentDescription = "Next track",
                         tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(26.dp),
                     )
                 }
             }
-
             LinearProgressIndicator(
                 progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.5.dp),
-                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth().height(3.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
             )
         }
