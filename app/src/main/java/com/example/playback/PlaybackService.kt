@@ -13,11 +13,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
-import androidx.media3.exoplayer.audio.AudioProcessor
-import androidx.media3.exoplayer.audio.AudioRendererEventListener
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.exoplayer.video.VideoSink
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
@@ -58,15 +55,14 @@ class PlaybackService : MediaSessionService() {
                 extensionRendererMode: Int,
                 mediaCodecSelector: MediaCodecSelector,
                 enableDecoderFallback: Boolean,
-                eventHandler: Handler,
-                videoSink: VideoSink,
+                allowedVideoJoiningTimeMs: Long,
                 out: ArrayList<Renderer>,
             ) {
                 super.buildVideoRenderers(
-                    context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback,
-                    eventHandler, videoSink, out
+                    context, extensionRendererMode, mediaCodecSelector,
+                    enableDecoderFallback, allowedVideoJoiningTimeMs, out
                 )
-                out.add(FfmpegVideoRenderer())
+                out.add(FfmpegVideoRenderer(allowedVideoJoiningTimeMs))
             }
 
             override fun buildAudioRenderers(
@@ -74,14 +70,13 @@ class PlaybackService : MediaSessionService() {
                 extensionRendererMode: Int,
                 mediaCodecSelector: MediaCodecSelector,
                 enableDecoderFallback: Boolean,
-                audioProcessors: Array<AudioProcessor>,
                 eventHandler: Handler,
-                eventListener: AudioRendererEventListener,
+                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
                 out: ArrayList<Renderer>,
             ) {
                 super.buildAudioRenderers(
-                    context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback,
-                    audioProcessors, eventHandler, eventListener, out
+                    context, extensionRendererMode, mediaCodecSelector,
+                    enableDecoderFallback, eventHandler, eventListener, out
                 )
                 out.add(FfmpegAudioRenderer())
             }
@@ -119,9 +114,7 @@ class PlaybackService : MediaSessionService() {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val sessionActivityPendingIntent = PendingIntent.getActivity(
-            this,
-            1001,
-            launchIntent,
+            this, 1001, launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
