@@ -97,8 +97,7 @@ import com.example.ui.components.VideoGestureOverlay
 import com.example.ui.components.formatDurationMs
 import kotlinx.coroutines.delay
 
-@OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
     player: Player?,
