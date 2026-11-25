@@ -343,4 +343,179 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
                                 onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
                                 onRenamePlaylist = viewModel::renamePlaylist,
                                 onDeletePlaylist = viewModel::deletePlaylist,
-                                onPlayTracks = { track, queue -> viewModel.playAudio(track, queue); navController.navigate(RouteNowPlaying
+                                onPlayTracks = { track, queue -> viewModel.playAudio(track, queue); navController.navigate(RouteNowPlaying) },
+                                onMoveTrack = viewModel::movePlaylistTrack,
+                                onRemoveTrack = viewModel::removeTrackFromPlaylist,
+                                modifier = Modifier,
+                            )
+                        }
+
+                        composable<RouteSettings> {
+                            val folderFilters by viewModel.folderFilters.collectAsStateWithLifecycle()
+                            SettingsScreen(
+                                preferences = preferences,
+                                folderFilters = folderFilters,
+                                onToggleFolderIncluded = viewModel::setFolderIncluded,
+                                onThemeModeChange = viewModel::setThemeMode,
+                                onThemePaletteChange = viewModel::setThemePalette,
+                                onDynamicColorChange = viewModel::setDynamicColorEnabled,
+                                onBackgroundPresetChange = viewModel::setBackgroundPreset,
+                                onBackgroundOverlayOpacityChange = viewModel::setBackgroundOverlayOpacity,
+                                onPickCustomBackgroundUri = viewModel::pickCustomBackgroundUri,
+                                onSubtitlesDefaultChange = viewModel::setSubtitlesEnabledByDefault,
+                                onSubtitleSizeChange = viewModel::setSubtitleTextSizeSp,
+                                onSubtitlePresetChange = viewModel::setSubtitleStylePreset,
+                                onPreferExtensionDecodersChange = viewModel::setPreferExtensionDecoders,
+                                modifier = Modifier,
+                            )
+                        }
+
+                        composable<RouteNowPlaying> {
+                            NowPlayingScreen(
+                                playbackState = playbackState,
+                                sleepTimerState = sleepTimerState,
+                                artworkLoader = viewModel.artworkLoader,
+                                onNavigateBack = { navController.popBackStack() },
+                                onTogglePlayPause = viewModel.playbackController::togglePlayPause,
+                                onSeekTo = viewModel.playbackController::seekTo,
+                                onSkipPrevious = viewModel.playbackController::skipToPrevious,
+                                onSkipNext = viewModel.playbackController::skipToNext,
+                                onToggleShuffle = viewModel.playbackController::toggleShuffle,
+                                onCycleRepeat = viewModel.playbackController::cycleRepeatMode,
+                                onOpenQueue = { showQueueSheet = true },
+                                onOpenEqualizer = { showEqSheet = true },
+                                onOpenSpeedPitch = { showSpeedPitchSheet = true },
+                                onOpenSleepTimer = { showSleepSheet = true },
+                                onOpenAddToPlaylist = { playbackState.currentTrack?.let { playlistTargetTrack = it } },
+                                modifier = Modifier.statusBarsPadding(),
+                            )
+                        }
+
+                        composable<RouteVideoPlayer> {
+                            VideoPlayerScreen(
+                                player = viewModel.playbackController.getPlayer(),
+                                playbackState = playbackState,
+                                preferences = preferences,
+                                sleepTimerState = sleepTimerState,
+                                onNavigateBack = { viewModel.playbackController.pause(); navController.popBackStack() },
+                                onTogglePlayPause = viewModel.playbackController::togglePlayPause,
+                                onSeekTo = viewModel.playbackController::seekTo,
+                                onSeekBy = viewModel.playbackController::seekBy,
+                                onCycleResizeMode = viewModel.playbackController::cycleVideoResizeMode,
+                                onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
+                                onPickSidecarSubtitleUri = viewModel::pickSidecarSubtitleUri,
+                                onUpdateSubtitleSize = viewModel::setSubtitleTextSizeSp,
+                                onUpdateSubtitlePreset = viewModel::setSubtitleStylePreset,
+                                onOpenSpeedSheet = { showSpeedPitchSheet = true },
+                                onOpenSleepTimerSheet = { showSleepSheet = true },
+                            )
+                        }
+                    }
+
+                    if (!isFullPlayerRoute && useNavRail && playbackState.currentTrack?.mediaType == MediaType.AUDIO) {
+                        MiniPlayerBar(
+                            playbackState = playbackState,
+                            artworkLoader = viewModel.artworkLoader,
+                            onOpenNowPlaying = { navController.navigate(RouteNowPlaying) },
+                            onTogglePlayPause = viewModel.playbackController::togglePlayPause,
+                            onSkipNext = viewModel.playbackController::skipToNext,
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                        )
+                    }
+
+                    playbackState.errorMessage?.let { errorMsg ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            tonalElevation = 6.dp,
+                            modifier = Modifier.align(Alignment.TopCenter).padding(14.dp).fillMaxWidth(),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                                Text(text = errorMsg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.weight(1f))
+                                if (playbackState.queue.size > 1) {
+                                    TextButton(onClick = { viewModel.playbackController.dismissError(); viewModel.playbackController.skipToNext() }) {
+                                        Text(stringResource(R.string.playback_error_skip))
+                                    }
+                                }
+                                TextButton(onClick = viewModel.playbackController::dismissError) {
+                                    Text(stringResource(R.string.playback_error_dismiss))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showThemeStudioSheet) {
+        ThemeStudioBottomSheet(
+            preferences = preferences,
+            onDismiss = { showThemeStudioSheet = false },
+            onThemeModeChange = viewModel::setThemeMode,
+            onThemePaletteChange = viewModel::setThemePalette,
+            onDynamicColorChange = viewModel::setDynamicColorEnabled,
+            onBackgroundPresetChange = viewModel::setBackgroundPreset,
+            onBackgroundOverlayOpacityChange = viewModel::setBackgroundOverlayOpacity,
+            onPickCustomBackgroundUri = viewModel::pickCustomBackgroundUri,
+        )
+    }
+    if (showQueueSheet) {
+        QueueBottomSheet(
+            queue = playbackState.queue,
+            currentIndex = playbackState.currentIndex,
+            artworkLoader = viewModel.artworkLoader,
+            onDismiss = { showQueueSheet = false },
+            onSelectTrack = viewModel.playbackController::skipToQueueIndex,
+            onMoveTrack = viewModel.playbackController::moveQueueItem,
+            onRemoveTrack = viewModel.playbackController::removeQueueItem,
+            onSaveQueueAsPlaylist = {
+                val ids = playbackState.queue.map { it.mediaStoreId }
+                viewModel.createPlaylist("Queue Mix", ids)
+                showQueueSheet = false
+            },
+        )
+    }
+    if (showEqSheet) {
+        EqualizerBottomSheet(
+            state = audioEffectsState,
+            onDismiss = { showEqSheet = false },
+            onToggleEnabled = viewModel.audioEffectsManager::setEnabled,
+            onSelectPreset = viewModel.audioEffectsManager::selectPreset,
+            onBandLevelChange = viewModel.audioEffectsManager::setBandLevel,
+            onBassBoostChange = viewModel.audioEffectsManager::setBassBoost,
+            onLoudnessChange = viewModel.audioEffectsManager::setLoudnessGain,
+        )
+    }
+    if (showSleepSheet) {
+        SleepTimerBottomSheet(
+            state = sleepTimerState,
+            onDismiss = { showSleepSheet = false },
+            onSelectMinutes = viewModel.playbackController.sleepTimerManager::startMinutes,
+            onSelectEndOfTrack = viewModel.playbackController.sleepTimerManager::setEndOfTrack,
+            onCancel = viewModel.playbackController.sleepTimerManager::cancel,
+        )
+    }
+    if (showSpeedPitchSheet) {
+        SpeedPitchBottomSheet(
+            speed = playbackState.playbackSpeed,
+            pitch = playbackState.playbackPitch,
+            showPitchControl = playbackState.currentTrack?.mediaType != MediaType.VIDEO,
+            onDismiss = { showSpeedPitchSheet = false },
+            onUpdate = viewModel.playbackController::setPlaybackParameters,
+        )
+    }
+    playlistTargetTrack?.let { target ->
+        AddToPlaylistBottomSheet(
+            playlists = playlists,
+            onDismiss = { playlistTargetTrack = null },
+            onSelectPlaylist = { playlistId -> viewModel.addTrackToPlaylist(playlistId, target.mediaStoreId) },
+            onCreatePlaylist = { newName -> viewModel.createPlaylist(newName, listOf(target.mediaStoreId)) },
+        )
+    }
+}
