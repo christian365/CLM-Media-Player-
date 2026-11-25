@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Cadence</string>
+    <string name="app_name">CLM Media Player</string>
     <string name="tagline_offline">Strictly Offline • Zero Ads • Zero Trackers</string>
 
     <!-- Navigation & Tabs -->
@@ -9,7 +9,7 @@
 
     <!-- Permission Gate -->
     <string name="perm_title">Local Media Access</string>
-    <string name="perm_subtitle">Cadence reads only audio and video files stored on your device. No internet permission, no analytics, and no telemetry.</string>
+    <string name="perm_subtitle">CLM Media Player reads only audio and video files stored on your device. No internet permission, no analytics, and no telemetry.</string>
     <string name="perm_grant_button">Grant Media Access</string>
     <string name="perm_settings_button">Open App Settings</string>
     <string name="perm_denied_hint">Media permissions were denied. Enable Audio and Video access in system settings to browse your library.</string>
@@ -29,7 +29,7 @@
     <string name="lyrics_tab">Lyrics</string>
     <string name="artwork_tab">Cover</string>
     <string name="no_lyrics_found">No embedded lyrics found</string>
-    <string name="no_lyrics_hint">Cadence checks ID3v2 (USLT/SYLT), Vorbis comments, and MP4 ©lyr tags automatically.</string>
+    <string name="no_lyrics_hint">CLM Media Player checks ID3v2 (USLT/SYLT), Vorbis comments, and MP4 ©lyr tags automatically.</string>
     <string name="synced_lyrics_badge">Synced LRC</string>
     <string name="plain_lyrics_badge">Embedded Lyrics</string>
     <string name="queue_title">Playback Queue</string>
@@ -49,7 +49,7 @@
     <string name="subtitle_defaults_title">Subtitle Appearance</string>
     <string name="appearance_title">Theme &amp; Background Studio</string>
     <string name="theme_mode_label">Brightness Mode</string>
-    <string name="theme_palette_label">Colorful Theme</string>
+    <string name="theme_palette_label">Accent Color</string>
     <string name="background_selection_label">Background Style</string>
     <string name="background_dim_label">Background Scrim Opacity</string>
     <string name="pick_custom_background">Choose Device Photo</string>
