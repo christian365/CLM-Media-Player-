@@ -16,13 +16,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -47,7 +44,6 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
@@ -60,7 +56,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -102,10 +97,10 @@ import com.example.ui.components.VideoGestureOverlay
 import com.example.ui.components.formatDurationMs
 import kotlinx.coroutines.delay
 
+@OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
-   @OptIn(UnstableApi::class)
-   @Composable
-   fun VideoPlayerScreen(
+@Composable
+fun VideoPlayerScreen(
     player: Player?,
     playbackState: PlaybackUiState,
     preferences: UserPreferences,
@@ -132,11 +127,7 @@ import kotlinx.coroutines.delay
 
     val subtitlePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
-    ) { uri: Uri? ->
-        if (uri != null) {
-            onPickSidecarSubtitleUri(uri)
-        }
-    }
+    ) { uri: Uri? -> if (uri != null) onPickSidecarSubtitleUri(uri) }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -147,8 +138,7 @@ import kotlinx.coroutines.delay
         }
         onDispose {
             if (window != null) {
-                val controller = WindowCompat.getInsetsController(window, window.decorView)
-                controller.show(WindowInsetsCompat.Type.systemBars())
+                WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
             }
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
@@ -156,38 +146,27 @@ import kotlinx.coroutines.delay
 
     LaunchedEffect(controlsVisible, playbackState.isPlaying, showSubtitleSheet) {
         if (controlsVisible && playbackState.isPlaying && !showSubtitleSheet) {
-            delay(4000L)
-            controlsVisible = false
+            delay(4000L); controlsVisible = false
         }
     }
 
-    BackHandler {
-        onNavigateBack()
-    }
+    BackHandler { onNavigateBack() }
 
     VideoGestureOverlay(
         player = player as ExoPlayer,
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .testTag("video_player_surface"),
+        modifier = modifier.fillMaxSize().background(Color.Black).testTag("video_player_surface"),
     ) {
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     useController = false
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    )
+                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     keepScreenOn = true
                     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                 }
             },
             update = { view ->
-                if (view.player !== player) {
-                    view.player = player
-                }
+                if (view.player !== player) view.player = player
                 view.resizeMode = when (playbackState.videoResizeMode) {
                     VideoResizeMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
                     VideoResizeMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
@@ -195,249 +174,47 @@ import kotlinx.coroutines.delay
                     VideoResizeMode.RATIO_16_9 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
                     VideoResizeMode.RATIO_4_3 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
                 }
-                SubtitleOverlayHelper.applyStyle(
-                    subtitleView = view.subtitleView,
-                    textSizeSp = preferences.subtitleTextSizeSp,
-                    preset = preferences.subtitleStylePreset,
-                )
+                SubtitleOverlayHelper.applyStyle(view.subtitleView, preferences.subtitleTextSizeSp, preferences.subtitleStylePreset)
             },
             modifier = Modifier.fillMaxSize(),
         )
 
-        AnimatedVisibility(
-            visible = controlsVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.Black.copy(alpha = 0.72f),
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.82f),
-                            )
-                        )
-                    ),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                        .align(Alignment.TopCenter),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("video_back_button"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back to library",
-                            tint = Color.White,
-                        )
+        AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.82f))))) {
+                Row(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp).align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_back_button")) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
-
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = playbackState.currentTrack?.title ?: "Video Player",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (playbackState.codecSummary.isNotBlank()) {
-                            Text(
-                                text = playbackState.codecSummary,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.78f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                        Text(text = playbackState.currentTrack?.title ?: "Video Player", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (playbackState.codecSummary.isNotBlank()) Text(text = playbackState.codecSummary, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-
-                    FormatBadgePill(
-                        label = playbackState.videoResizeMode.label,
-                        containerColor = Color.White.copy(alpha = 0.16f),
-                        contentColor = Color.White,
-                        modifier = Modifier.clickable(onClick = onCycleResizeMode),
-                    )
-
-                    IconButton(
-                        onClick = {
-                            isLandscapeForced = !isLandscapeForced
-                            activity?.requestedOrientation = if (isLandscapeForced) {
-                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                            } else {
-                                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                            }
-                        },
-                        modifier = Modifier.minimumInteractiveComponentSize(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ScreenRotation,
-                            contentDescription = "Toggle orientation",
-                            tint = Color.White,
-                        )
+                    FormatBadgePill(label = playbackState.videoResizeMode.label, containerColor = Color.White.copy(alpha = 0.16f), contentColor = Color.White, modifier = Modifier.clickable(onClick = onCycleResizeMode))
+                    IconButton(onClick = { isLandscapeForced = !isLandscapeForced; activity?.requestedOrientation = if (isLandscapeForced) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }, modifier = Modifier.minimumInteractiveComponentSize()) {
+                        Icon(Icons.Rounded.ScreenRotation, contentDescription = "Orientation", tint = Color.White)
                     }
                 }
-
-                Row(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalArrangement = Arrangement.spacedBy(32.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(
-                        onClick = { onSeekBy(-10_000L) },
-                        modifier = Modifier
-                            .size(56.dp)
-                            .testTag("video_rewind_10"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Replay10,
-                            contentDescription = "Rewind 10 seconds",
-                            tint = Color.White,
-                            modifier = Modifier.size(36.dp),
-                        )
+                Row(modifier = Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { onSeekBy(-10_000L) }, modifier = Modifier.size(56.dp).testTag("video_rewind_10")) { Icon(Icons.Rounded.Replay10, contentDescription = "Rewind 10s", tint = Color.White, modifier = Modifier.size(36.dp)) }
+                    FilledIconButton(onClick = onTogglePlayPause, shape = CircleShape, colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary), modifier = Modifier.size(68.dp).testTag("video_play_pause")) {
+                        Icon(if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = if (playbackState.isPlaying) "Pause" else "Play", modifier = Modifier.size(38.dp))
                     }
-
-                    FilledIconButton(
-                        onClick = onTogglePlayPause,
-                        shape = CircleShape,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                        modifier = Modifier
-                            .size(68.dp)
-                            .testTag("video_play_pause"),
-                    ) {
-                        Icon(
-                            imageVector = if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(38.dp),
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { onSeekBy(10_000L) },
-                        modifier = Modifier
-                            .size(56.dp)
-                            .testTag("video_forward_10"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Forward10,
-                            contentDescription = "Forward 10 seconds",
-                            tint = Color.White,
-                            modifier = Modifier.size(36.dp),
-                        )
-                    }
+                    IconButton(onClick = { onSeekBy(10_000L) }, modifier = Modifier.size(56.dp).testTag("video_forward_10")) { Icon(Icons.Rounded.Forward10, contentDescription = "Forward 10s", tint = Color.White, modifier = Modifier.size(36.dp)) }
                 }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .align(Alignment.BottomCenter),
-                ) {
+                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp).align(Alignment.BottomCenter)) {
                     val duration = playbackState.durationMs.coerceAtLeast(1L)
                     var isDragging by remember { mutableStateOf(false) }
                     var dragFraction by remember { mutableFloatStateOf(0f) }
-                    val sliderVal = if (isDragging) {
-                        dragFraction
-                    } else {
-                        (playbackState.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-                    }
-
-                    Slider(
-                        value = sliderVal,
-                        onValueChange = {
-                            isDragging = true
-                            dragFraction = it
-                        },
-                        onValueChangeFinished = {
-                            onSeekTo((dragFraction * duration).toLong())
-                            isDragging = false
-                        },
-                        colors = SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.32f),
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val posText = formatDurationMs(
-                            if (isDragging) (dragFraction * duration).toLong() else playbackState.positionMs
-                        )
-                        Text(
-                            text = "$posText / ${formatDurationMs(playbackState.durationMs)}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.White,
-                        )
-
+                    val sliderVal = if (isDragging) dragFraction else (playbackState.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                    Slider(value = sliderVal, onValueChange = { isDragging = true; dragFraction = it }, onValueChangeFinished = { onSeekTo((dragFraction * duration).toLong()); isDragging = false }, colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = Color.White.copy(alpha = 0.32f)), modifier = Modifier.fillMaxWidth())
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "${formatDurationMs(if (isDragging) (dragFraction * duration).toLong() else playbackState.positionMs)} / ${formatDurationMs(playbackState.durationMs)}", style = MaterialTheme.typography.labelMedium, color = Color.White)
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            IconButton(
-                                onClick = onCycleResizeMode,
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("video_aspect_button"),
-                            ) {
-                                Icon(Icons.Rounded.AspectRatio, contentDescription = "Aspect ratio", tint = Color.White)
-                            }
-                            IconButton(
-                                onClick = onOpenSpeedSheet,
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("video_speed_button"),
-                            ) {
-                                Icon(Icons.Rounded.Speed, contentDescription = "Playback speed", tint = Color.White)
-                            }
-                            IconButton(
-                                onClick = onOpenSleepTimerSheet,
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("video_sleep_button"),
-                            ) {
-                                Icon(
-                                    Icons.Rounded.Nightlight,
-                                    contentDescription = "Sleep timer",
-                                    tint = if (sleepTimerState !is SleepTimerState.Off) {
-                                        MaterialTheme.colorScheme.secondary
-                                    } else {
-                                        Color.White
-                                    },
-                                )
-                            }
+                            IconButton(onClick = onCycleResizeMode, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_aspect_button")) { Icon(Icons.Rounded.AspectRatio, contentDescription = "Aspect", tint = Color.White) }
+                            IconButton(onClick = onOpenSpeedSheet, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_speed_button")) { Icon(Icons.Rounded.Speed, contentDescription = "Speed", tint = Color.White) }
+                            IconButton(onClick = onOpenSleepTimerSheet, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_sleep_button")) { Icon(Icons.Rounded.Nightlight, contentDescription = "Sleep timer", tint = if (sleepTimerState !is SleepTimerState.Off) MaterialTheme.colorScheme.secondary else Color.White) }
                             val hasSubtitles = playbackState.subtitleTracks.isNotEmpty()
-                            IconButton(
-                                onClick = { showSubtitleSheet = true },
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("video_subtitle_button"),
-                            ) {
-                                Icon(
-                                    imageVector = if (hasSubtitles && selectedTrack != null)
-                                        Icons.Rounded.ClosedCaption else Icons.Rounded.ClosedCaptionDisabled,
-                                    contentDescription = "Subtitles",
-                                    tint = Color.White,
-                                )
-                            }
+                            IconButton(onClick = { showSubtitleSheet = true }, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_subtitle_button")) { Icon(if (hasSubtitles && selectedTrack != null) Icons.Rounded.ClosedCaption else Icons.Rounded.ClosedCaptionDisabled, contentDescription = "Subtitles", tint = Color.White) }
                         }
                     }
                 }
@@ -445,70 +222,18 @@ import kotlinx.coroutines.delay
         }
 
         if (showSubtitleSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showSubtitleSheet = false },
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.subtitles_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 12.dp),
-                    )
-
-                    FilterChip(
-                        selected = selectedTrack == null,
-                        onClick = { 
-                            selectedTrack = null
-                            onSelectSubtitleTrack(null) 
-                        },
-                        label = { Text(stringResource(R.string.subtitles_off)) },
-                        leadingIcon = if (selectedTrack == null) {
-                            { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                        } else null,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    )
-
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 300.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
+            ModalBottomSheet(onDismissRequest = { showSubtitleSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(text = stringResource(R.string.subtitles_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 12.dp))
+                    FilterChip(selected = selectedTrack == null, onClick = { selectedTrack = null; onSelectSubtitleTrack(null) }, label = { Text(stringResource(R.string.subtitles_off)) }, leadingIcon = if (selectedTrack == null) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         items(playbackState.subtitleTracks) { track ->
-                            FilterChip(
-                                selected = selectedTrack == track,
-                                onClick = { 
-                                    selectedTrack = track
-                                    onSelectSubtitleTrack(track) 
-                                },
-                                label = {
-                                    Text(
-                                        text = track.label,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                                leadingIcon = if (selectedTrack == track) {
-                                    { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                                } else null,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
+                            FilterChip(selected = selectedTrack == track, onClick = { selectedTrack = track; onSelectSubtitleTrack(track) }, label = { Text(text = track.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }, leadingIcon = if (selectedTrack == track) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth())
                         }
                     }
-
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                    OutlinedButton(
-                        onClick = { subtitlePickerLauncher.launch(arrayOf("text/*")) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(Icons.Rounded.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.load_sidecar_subtitle))
+                    OutlinedButton(onClick = { subtitlePickerLauncher.launch(arrayOf("text/*")) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.load_sidecar_subtitle))
                     }
                 }
             }
