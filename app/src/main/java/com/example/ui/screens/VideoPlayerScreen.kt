@@ -127,6 +127,7 @@ fun VideoPlayerScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     var showSubtitleSheet by remember { mutableStateOf(false) }
     var isLandscapeForced by remember { mutableStateOf(false) }
+    var selectedTrack by remember { mutableStateOf<SubtitleTrackOption?>(null) }
 
     val subtitlePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -136,13 +137,11 @@ fun VideoPlayerScreen(
         }
     }
 
-    // Immersive fullscreen system bars while viewing video
     DisposableEffect(activity) {
         val window = activity?.window
         if (window != null) {
             val controller = WindowCompat.getInsetsController(window, window.decorView)
-            controller.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller.hide(WindowInsetsCompat.Type.systemBars())
         }
         onDispose {
@@ -154,7 +153,6 @@ fun VideoPlayerScreen(
         }
     }
 
-    // Auto-hide controls after 4 seconds when playing
     LaunchedEffect(controlsVisible, playbackState.isPlaying, showSubtitleSheet) {
         if (controlsVisible && playbackState.isPlaying && !showSubtitleSheet) {
             delay(4000L)
@@ -173,7 +171,6 @@ fun VideoPlayerScreen(
             .background(Color.Black)
             .testTag("video_player_surface"),
     ) {
-        // Media3 PlayerView with built-in SurfaceView + SubtitleView (CaptionStyleCompat)
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
@@ -206,7 +203,6 @@ fun VideoPlayerScreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        // Controls Overlay
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
@@ -227,7 +223,6 @@ fun VideoPlayerScreen(
                         )
                     ),
             ) {
-                // Top Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -295,7 +290,6 @@ fun VideoPlayerScreen(
                     }
                 }
 
-                // Center Play/Seek Controls
                 Row(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalArrangement = Arrangement.spacedBy(32.dp),
@@ -348,7 +342,6 @@ fun VideoPlayerScreen(
                     }
                 }
 
-                // Bottom Bar (Scrubber + Utility Actions)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -430,7 +423,7 @@ fun VideoPlayerScreen(
                                     },
                                 )
                             }
-                            val hasSubtitles = playbackState.availableSubtitleTracks.isNotEmpty()
+                            val hasSubtitles = playbackState.subtitleTracks.isNotEmpty()
                             IconButton(
                                 onClick = { showSubtitleSheet = true },
                                 modifier = Modifier
@@ -438,7 +431,7 @@ fun VideoPlayerScreen(
                                     .testTag("video_subtitle_button"),
                             ) {
                                 Icon(
-                                    imageVector = if (hasSubtitles && playbackState.selectedSubtitleTrack != null)
+                                    imageVector = if (hasSubtitles && selectedTrack != null)
                                         Icons.Rounded.ClosedCaption else Icons.Rounded.ClosedCaptionDisabled,
                                     contentDescription = "Subtitles",
                                     tint = Color.White,
@@ -450,7 +443,6 @@ fun VideoPlayerScreen(
             }
         }
 
-        // Subtitle Selection Sheet
         if (showSubtitleSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showSubtitleSheet = false },
@@ -469,10 +461,13 @@ fun VideoPlayerScreen(
                     )
 
                     FilterChip(
-                        selected = playbackState.selectedSubtitleTrack == null,
-                        onClick = { onSelectSubtitleTrack(null) },
+                        selected = selectedTrack == null,
+                        onClick = { 
+                            selectedTrack = null
+                            onSelectSubtitleTrack(null) 
+                        },
                         label = { Text(stringResource(R.string.subtitles_off)) },
-                        leadingIcon = if (playbackState.selectedSubtitleTrack == null) {
+                        leadingIcon = if (selectedTrack == null) {
                             { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
                         } else null,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -482,10 +477,13 @@ fun VideoPlayerScreen(
                         modifier = Modifier.heightIn(max = 300.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        items(playbackState.availableSubtitleTracks) { track ->
+                        items(playbackState.subtitleTracks) { track ->
                             FilterChip(
-                                selected = playbackState.selectedSubtitleTrack == track,
-                                onClick = { onSelectSubtitleTrack(track) },
+                                selected = selectedTrack == track,
+                                onClick = { 
+                                    selectedTrack = track
+                                    onSelectSubtitleTrack(track) 
+                                },
                                 label = {
                                     Text(
                                         text = track.label,
@@ -493,7 +491,7 @@ fun VideoPlayerScreen(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 },
-                                leadingIcon = if (playbackState.selectedSubtitleTrack == track) {
+                                leadingIcon = if (selectedTrack == track) {
                                     { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                 } else null,
                                 modifier = Modifier.fillMaxWidth(),
