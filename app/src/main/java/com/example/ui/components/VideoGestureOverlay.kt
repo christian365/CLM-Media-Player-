@@ -1,8 +1,8 @@
 package com.example.ui.components
 
+import android.app.Activity
 import android.content.Context
 import android.media.AudioManager
-import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,11 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.exoplayer.ExoPlayer
@@ -59,7 +57,7 @@ fun VideoGestureOverlay(
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    val view = LocalView.current
+    val activity = context as? Activity
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
     var osd by remember { mutableStateOf<OsdState?>(null) }
@@ -86,7 +84,7 @@ fun VideoGestureOverlay(
                     var side: Side = Side.LEFT
                     var startX = 0f
                     var startY = 0f
-                    var startBrightness = 0f
+                    var startBrightness = 0.5f
                     var startVolume = 0
                     var startPosition = 0L
                     var maxVolume = 15
@@ -97,9 +95,9 @@ fun VideoGestureOverlay(
                             startY = offset.y
                             axis = Axis.NONE
                             side = if (offset.x < size.width / 2f) Side.LEFT else Side.RIGHT
-                            startBrightness = view.window.attributes.screenBrightness.let {
+                            startBrightness = activity?.window?.attributes?.screenBrightness?.let {
                                 if (it < 0f) 0.5f else it
-                            }
+                            } ?: 0.5f
                             maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                             startVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                             startPosition = player.currentPosition
@@ -118,7 +116,6 @@ fun VideoGestureOverlay(
 
                             when (axis) {
                                 Axis.HORIZONTAL -> {
-                                    // dx > 0 = forward, dx < 0 = rewind
                                     val deltaMs = (dx * 50).toLong()
                                     val dur = player.duration
                                     val newPos = (startPosition + deltaMs).coerceIn(
@@ -133,18 +130,19 @@ fun VideoGestureOverlay(
                                 }
                                 Axis.VERTICAL -> {
                                     if (side == Side.LEFT) {
-                                        // brightness
                                         val delta = -dy / size.height
                                         val newB = (startBrightness + delta).coerceIn(0f, 1f)
-                                        val attrs = view.window.attributes
-                                        attrs.screenBrightness = newB
-                                        view.window.attributes = attrs
+                                        val window = activity?.window
+                                        if (window != null) {
+                                            val attrs = window.attributes
+                                            attrs.screenBrightness = newB
+                                            window.attributes = attrs
+                                        }
                                         osd = OsdState(
                                             icon = Icons.Rounded.BrightnessHigh,
                                             label = "${(newB * 100).toInt()}%",
                                         )
                                     } else {
-                                        // volume
                                         val delta = -dy / size.height
                                         val newV = (startVolume + delta * maxVolume).toInt().coerceIn(0, maxVolume)
                                         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newV, 0)
@@ -163,7 +161,6 @@ fun VideoGestureOverlay(
                 }
         )
 
-        // OSD feedback
         osd?.let { state ->
             AnimatedVisibility(
                 visible = osdVisible,
