@@ -21,6 +21,7 @@ import com.example.CadenceApplication
 import com.example.MainActivity
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -61,9 +62,10 @@ class PlaybackService : MediaSessionService() {
         val prefs = runBlocking { app.container.preferencesRepository.preferences.first() }
 
         codecSelector.preferFfmpegAudio = prefs.preferExtensionDecoders
+        codecSelector.preferFfmpegVideo = prefs.preferExtensionDecoders
         codecSelector.preferSoftwareOnly = false
 
-        val renderersFactory = DefaultRenderersFactory(this).apply {
+        val renderersFactory = NextRenderersFactory(this).apply {
             setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             setEnableDecoderFallback(true)
             setMediaCodecSelector(codecSelector)
@@ -156,7 +158,15 @@ class PlaybackService : MediaSessionService() {
                     }
                     codecSelector.preferSoftwareOnly = args.getBoolean(ARG_SOFTWARE_FALLBACK, false)
                     if (args.containsKey(ARG_PREFER_EXTENSIONS)) {
-                        codecSelector.preferFfmpegAudio = args.getBoolean(ARG_PREFER_EXTENSIONS, false)
+                        val preferAll = args.getBoolean(ARG_PREFER_EXTENSIONS, false)
+                        codecSelector.preferFfmpegAudio = preferAll
+                        codecSelector.preferFfmpegVideo = preferAll
+                    }
+                    if (args.containsKey(ARG_PREFER_FFMPEG_VIDEO)) {
+                        codecSelector.preferFfmpegVideo = args.getBoolean(ARG_PREFER_FFMPEG_VIDEO, false)
+                    }
+                    if (args.containsKey(ARG_PREFER_FFMPEG_AUDIO)) {
+                        codecSelector.preferFfmpegAudio = args.getBoolean(ARG_PREFER_FFMPEG_AUDIO, false)
                     }
                     Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                 }
@@ -171,6 +181,8 @@ class PlaybackService : MediaSessionService() {
         const val ARG_ENABLED = "enabled"
         const val ARG_SOFTWARE_FALLBACK = "software_fallback"
         const val ARG_PREFER_EXTENSIONS = "prefer_extensions"
+        const val ARG_PREFER_FFMPEG_VIDEO = "prefer_ffmpeg_video"
+        const val ARG_PREFER_FFMPEG_AUDIO = "prefer_ffmpeg_audio"
         const val ARG_EXCLUDE_LAST_FAILED_CODEC = "exclude_last_failed_codec"
         const val ARG_RESET_EXCLUSIONS = "reset_exclusions"
         const val EXTRA_LAST_ERROR_DETAIL = "last_error_detail"

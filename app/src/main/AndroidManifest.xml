@@ -2,9 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Strictly offline: ensure no network permissions are ever merged -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <!-- Optional online services (lyrics, subtitles, codec lookup) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Local media permissions (Android 13+ granular, <= Android 12 scoped) -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />

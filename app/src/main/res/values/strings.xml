@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">CLM Media Player</string>
-    <string name="tagline_offline">Strictly Offline • Zero Ads • Zero Trackers</string>
+    <string name="tagline_offline">Local-First Media • Optional Online Lookup • Zero Ads</string>
 
     <!-- Navigation & Tabs -->
     <string name="nav_library">Library</string>
@@ -9,7 +9,7 @@
 
     <!-- Permission Gate -->
     <string name="perm_title">Local Media Access</string>
-    <string name="perm_subtitle">CLM Media Player reads only audio and video files stored on your device. No internet permission, no analytics, and no telemetry.</string>
+    <string name="perm_subtitle">CLM Media Player reads audio and video files stored on your device. Internet access is used only for optional online lyrics, subtitles, and codec help.</string>
     <string name="perm_grant_button">Grant Media Access</string>
     <string name="perm_settings_button">Open App Settings</string>
     <string name="perm_denied_hint">Media permissions were denied. Enable Audio and Video access in system settings to browse your library.</string>
@@ -28,10 +28,11 @@
     <string name="now_playing">Now Playing</string>
     <string name="lyrics_tab">Lyrics</string>
     <string name="artwork_tab">Cover</string>
-    <string name="no_lyrics_found">No embedded lyrics found</string>
-    <string name="no_lyrics_hint">CLM Media Player checks ID3v2 (USLT/SYLT), Vorbis comments, and MP4 ©lyr tags automatically.</string>
+    <string name="no_lyrics_found">No lyrics loaded</string>
+    <string name="no_lyrics_hint">Checks embedded ID3v2/Vorbis/MP4 tags first, then searches LRCLIB online when enabled.</string>
+    <string name="search_online_lyrics">Fetch Online Lyrics</string>
     <string name="synced_lyrics_badge">Synced LRC</string>
-    <string name="plain_lyrics_badge">Embedded Lyrics</string>
+    <string name="plain_lyrics_badge">Plain Lyrics</string>
     <string name="queue_title">Playback Queue</string>
     <string name="equalizer_title">Equalizer &amp; Audio FX</string>
     <string name="sleep_timer_title">Sleep Timer</string>
@@ -40,12 +41,14 @@
     <!-- Video Player & Subtitles -->
     <string name="subtitles_title">Subtitles &amp; Captions</string>
     <string name="load_sidecar_subtitle">Load Sidecar Subtitle (.srt / .vtt / .ass)</string>
+    <string name="search_online_subtitles">Search Online Subtitles</string>
     <string name="subtitles_off">Subtitles Off</string>
 
     <!-- Settings & Edge Cases -->
     <string name="settings_title">Library &amp; Codec Settings</string>
     <string name="folder_filters_title">Folder Visibility</string>
     <string name="codec_settings_title">Decoder &amp; FFmpeg Engine</string>
+    <string name="online_services_title">Online Services (Lyrics, Subtitles &amp; Codecs)</string>
     <string name="subtitle_defaults_title">Subtitle Appearance</string>
     <string name="appearance_title">Theme &amp; Background Studio</string>
     <string name="theme_mode_label">Brightness Mode</string>
@@ -56,4 +59,5 @@
     <string name="open_theme_studio">Customize Theme &amp; Background</string>
     <string name="playback_error_dismiss">Dismiss</string>
     <string name="playback_error_skip">Skip Track</string>
+    <string name="playback_error_codec_help">Codec Help</string>
 </resources>

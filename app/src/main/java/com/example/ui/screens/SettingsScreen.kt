@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ClosedCaption
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Info
@@ -28,16 +29,24 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
@@ -68,6 +77,10 @@ fun SettingsScreen(
     onSubtitleSizeChange: (Float) -> Unit,
     onSubtitlePresetChange: (SubtitleStylePreset) -> Unit,
     onPreferExtensionDecodersChange: (Boolean) -> Unit,
+    onOnlineLyricsChange: (Boolean) -> Unit = {},
+    onOnlineSubtitlesChange: (Boolean) -> Unit = {},
+    onOnlineCodecLookupChange: (Boolean) -> Unit = {},
+    onOpenSubtitlesApiKeyChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -136,6 +149,114 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+
+        // Online Services (Lyrics, Subtitles & Codec Help)
+        item {
+            SettingsCard(
+                icon = Icons.Rounded.Cloud,
+                title = stringResource(R.string.online_services_title),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Online Lyrics (LRCLIB)", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Fetch synced LRC and plain lyrics automatically when embedded tags are missing.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = preferences.onlineLyricsEnabled,
+                        onCheckedChange = onOnlineLyricsChange,
+                        modifier = Modifier.testTag("online_lyrics_switch"),
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Online Subtitles (Podnapisi / OpenSubtitles)", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Search and download .srt/.ass/.vtt subtitles directly inside the video player.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = preferences.onlineSubtitlesEnabled,
+                        onCheckedChange = onOnlineSubtitlesChange,
+                        modifier = Modifier.testTag("online_subtitles_switch"),
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Online Codec Help & Diagnostics", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Look up codec compatibility details when a file uses an unsupported stream format.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = preferences.onlineCodecLookupEnabled,
+                        onCheckedChange = onOnlineCodecLookupChange,
+                        modifier = Modifier.testTag("online_codec_switch"),
+                    )
+                }
+
+                if (preferences.onlineSubtitlesEnabled) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+                    var apiKeyDraft by remember(preferences.openSubtitlesApiKey) {
+                        mutableStateOf(preferences.openSubtitlesApiKey)
+                    }
+                    Text("OpenSubtitles API Key (Optional)", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "Podnapisi works without an account. Add a free OpenSubtitles.com API key for extra subtitle results.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = apiKeyDraft,
+                        onValueChange = { apiKeyDraft = it },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        placeholder = { Text("Optional OpenSubtitles API key") },
+                        modifier = Modifier.fillMaxWidth().testTag("opensubtitles_api_key_input"),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { onOpenSubtitlesApiKeyChange(apiKeyDraft) },
+                            enabled = apiKeyDraft.trim() != preferences.openSubtitlesApiKey,
+                        ) {
+                            Text("Save Key")
+                        }
+                        if (preferences.openSubtitlesApiKey.isNotBlank()) {
+                            TextButton(onClick = { apiKeyDraft = ""; onOpenSubtitlesApiKeyChange("") }) {
+                                Text("Clear")
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -262,11 +383,11 @@ fun SettingsScreen(
             }
         }
 
-        // Offline Edge-Case & Privacy Notes
+        // Privacy & Edge Cases
         item {
             SettingsCard(
                 icon = Icons.Rounded.Shield,
-                title = "Offline Architecture & Edge Cases",
+                title = "Privacy & Playback Resilience",
             ) {
                 EdgeCaseBullet(
                     title = "Scoped Storage",
@@ -274,13 +395,13 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 EdgeCaseBullet(
-                    title = "Missing Lyrics & Subtitles",
-                    detail = "Displays a clear empty state when no ID3v2 USLT/SYLT, Vorbis LYRICS, or MP4 ©lyr tags exist, and allows one-tap manual sidecar loading for video.",
+                    title = "Online Lookup Privacy",
+                    detail = "Network requests happen only over HTTPS for lyrics (LRCLIB), subtitles (Podnapisi / optional OpenSubtitles), and codec reference lookups, with zero ads or tracking.",
                 )
                 Spacer(Modifier.height(8.dp))
                 EdgeCaseBullet(
                     title = "Corrupt or Unsupported Files",
-                    detail = "Hardware-to-FFmpeg fallback activates automatically; unplayable files surface a non-blocking banner with Skip Track recovery instead of crashing.",
+                    detail = "Hardware-to-FFmpeg fallback activates automatically; unplayable files surface Codec Help diagnostics, external player handoff, and Skip Track recovery.",
                 )
             }
         }

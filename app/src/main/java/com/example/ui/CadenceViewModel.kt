@@ -25,6 +25,13 @@ import com.example.media.AudioEffectsState
 import com.example.media.BackgroundImageStorage
 import com.example.media.LocalArtworkLoader
 import com.example.media.SleepTimerState
+import com.example.online.CodecAdviceReport
+import com.example.online.MediaQuerySanitizer
+import com.example.online.OnlineCodecAdvisor
+import com.example.online.OnlineSubtitleCandidate
+import com.example.online.OnlineSubtitleDownloadResult
+import com.example.online.OnlineSubtitleSearchResult
+import com.example.online.OnlineSubtitleService
 import com.example.playback.PlaybackController
 import com.example.playback.PlaybackUiState
 import com.example.playback.SubtitleTrackOption
@@ -36,7 +43,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+data class OnlineSubtitlesUiState(
+    val isSearching: Boolean = false,
+    val isDownloading: Boolean = false,
+    val results: List<OnlineSubtitleCandidate> = emptyList(),
+    val statusMessage: String? = null,
+)
+
+data class CodecAdvisorUiState(
+    val isVisible: Boolean = false,
+    val isLoading: Boolean = false,
+    val report: CodecAdviceReport? = null,
+)
 
 enum class LibraryCategory(val label: String) {
     SONGS("Songs"),
@@ -63,6 +84,8 @@ class CadenceViewModel(
     private val repository: MediaRepository = container.mediaRepository
     private val preferencesRepo = container.preferencesRepository
     private val sidecarFinder: SidecarSubtitleFinder = container.sidecarSubtitleFinder
+    private val onlineSubtitleService: OnlineSubtitleService = container.onlineSubtitleService
+    private val onlineCodecAdvisor: OnlineCodecAdvisor = container.onlineCodecAdvisor
 
     val artworkLoader: LocalArtworkLoader = container.artworkLoader
     val playbackController: PlaybackController = container.playbackController
@@ -72,6 +95,12 @@ class CadenceViewModel(
     val sleepTimerState: StateFlow<SleepTimerState> = playbackController.sleepTimerManager.state
     val audioEffectsState: StateFlow<AudioEffectsState> = audioEffectsManager.state
     val isScanning: StateFlow<Boolean> = repository.isScanning
+
+    private val _onlineSubtitlesState = MutableStateFlow(OnlineSubtitlesUiState())
+    val onlineSubtitlesState: StateFlow<OnlineSubtitlesUiState> = _onlineSubtitlesState.asStateFlow()
+
+    private val _codecAdvisorState = MutableStateFlow(CodecAdvisorUiState())
+    val codecAdvisorState: StateFlow<CodecAdvisorUiState> = _codecAdvisorState.asStateFlow()
 
     val preferences: StateFlow<UserPreferences> = preferencesRepo.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
@@ -174,6 +203,7 @@ class CadenceViewModel(
     }
 
     fun playVideo(video: MediaTrackEntity, onReady: () -> Unit = {}) {
+        _onlineSubtitlesState.value = OnlineSubtitlesUiState()
         viewModelScope.launch {
             val sidecars = sidecarFinder.findMatchingSubtitles(video)
             playbackController.stageVideoTrack(
@@ -194,6 +224,116 @@ class CadenceViewModel(
 
     fun selectSubtitleTrack(option: SubtitleTrackOption?) {
         playbackController.selectSubtitleTrack(option)
+    }
+
+    fun defaultSubtitleSearchQueryFor(track: MediaTrackEntity?): String {
+        if (track == null) return ""
+        return MediaQuerySanitizer.cleanVideoSearchQuery(track.title, track.fileName)
+    }
+
+    fun searchOnlineSubtitles(query: String, languageCode: String) {
+        if (!preferences.value.onlineSubtitlesEnabled) {
+            _onlineSubtitlesState.value = OnlineSubtitlesUiState(
+                statusMessage = "Online subtitle search is disabled in Settings.",
+            )
+            return
+        }
+        viewModelScope.launch {
+            _onlineSubtitlesState.update {
+                it.copy(isSearching = true, statusMessage = null, results = emptyList())
+            }
+            when (
+                val res = onlineSubtitleService.search(
+                    query = query,
+                    languageCode = languageCode,
+                    openSubtitlesApiKey = preferences.value.openSubtitlesApiKey,
+                )
+            ) {
+                is OnlineSubtitleSearchResult.Success -> {
+                    _onlineSubtitlesState.update {
+                        it.copy(
+                            isSearching = false,
+                            results = res.items,
+                            statusMessage = if (res.items.isEmpty()) "No matching online subtitles found." else null,
+                        )
+                    }
+                }
+                OnlineSubtitleSearchResult.Offline -> {
+                    _onlineSubtitlesState.update {
+                        it.copy(
+                            isSearching = false,
+                            statusMessage = "No internet connection. Connect online or load a local .srt/.ass/.vtt file.",
+                        )
+                    }
+                }
+                is OnlineSubtitleSearchResult.Error -> {
+                    _onlineSubtitlesState.update {
+                        it.copy(
+                            isSearching = false,
+                            statusMessage = "Subtitle search failed: ${res.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun downloadOnlineSubtitle(
+        candidate: OnlineSubtitleCandidate,
+        onAttached: () -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            _onlineSubtitlesState.update { it.copy(isDownloading = true, statusMessage = null) }
+            when (
+                val res = onlineSubtitleService.downloadAndSave(
+                    candidate = candidate,
+                    openSubtitlesApiKey = preferences.value.openSubtitlesApiKey,
+                )
+            ) {
+                is OnlineSubtitleDownloadResult.Success -> {
+                    playbackController.attachSidecarSubtitleToCurrentVideo(res.sidecar)
+                    _onlineSubtitlesState.update {
+                        it.copy(isDownloading = false, statusMessage = "Loaded: ${res.sidecar.displayName}")
+                    }
+                    onAttached()
+                }
+                OnlineSubtitleDownloadResult.Offline -> {
+                    _onlineSubtitlesState.update {
+                        it.copy(isDownloading = false, statusMessage = "Offline — cannot download subtitle.")
+                    }
+                }
+                is OnlineSubtitleDownloadResult.Error -> {
+                    _onlineSubtitlesState.update {
+                        it.copy(isDownloading = false, statusMessage = res.message)
+                    }
+                }
+            }
+        }
+    }
+
+    fun openCodecAdvisor() {
+        val track = playbackState.value.currentTrack
+        val detail = playbackState.value.lastErrorDiagnosticDetail
+        val allowOnline = preferences.value.onlineCodecLookupEnabled
+        _codecAdvisorState.value = CodecAdvisorUiState(isVisible = true, isLoading = true, report = null)
+        viewModelScope.launch {
+            val ext = track?.fileName?.substringAfterLast('.', "").orEmpty()
+            val report = onlineCodecAdvisor.inspectAndAdvise(
+                trackTitle = track?.title ?: "Media file",
+                diagnosticDetail = detail,
+                fileExtension = ext,
+                allowOnlineLookup = allowOnline,
+            )
+            _codecAdvisorState.update { it.copy(isLoading = false, report = report) }
+        }
+    }
+
+    fun dismissCodecAdvisor() {
+        _codecAdvisorState.value = CodecAdvisorUiState()
+    }
+
+    fun fetchOnlineLyrics() {
+        playbackController.fetchOnlineLyrics(forceRefresh = true)
     }
 
     fun createPlaylist(name: String, initialTrackIds: List<Long> = emptyList()) {
@@ -294,6 +434,22 @@ class CadenceViewModel(
             preferencesRepo.setPreferExtensionDecoders(prefer)
             playbackController.setPreferExtensionDecoders(prefer)
         }
+    }
+
+    fun setOnlineLyricsEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.setOnlineLyricsEnabled(enabled) }
+    }
+
+    fun setOnlineSubtitlesEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.setOnlineSubtitlesEnabled(enabled) }
+    }
+
+    fun setOnlineCodecLookupEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepo.setOnlineCodecLookupEnabled(enabled) }
+    }
+
+    fun setOpenSubtitlesApiKey(apiKey: String) {
+        viewModelScope.launch { preferencesRepo.setOpenSubtitlesApiKey(apiKey) }
     }
 
     class Factory(private val container: AppContainer) : ViewModelProvider.Factory {

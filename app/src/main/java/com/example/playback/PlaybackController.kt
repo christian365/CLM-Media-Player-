@@ -21,11 +21,14 @@ import androidx.media3.session.SessionToken
 import com.example.data.MediaRepository
 import com.example.data.local.MediaTrackEntity
 import com.example.data.local.MediaType
+import com.example.data.local.PreferencesRepository
 import com.example.data.scanner.SidecarSubtitle
 import com.example.lyrics.EmbeddedLyricsExtractor
 import com.example.lyrics.LyricsResult
 import com.example.media.AudioEffectsManager
 import com.example.media.SleepTimerManager
+import com.example.online.OnlineLyricsFetchResult
+import com.example.online.OnlineLyricsService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +38,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -60,11 +64,13 @@ data class PlaybackUiState(
     val playbackPitch: Float = 1.0f,
     val lyrics: LyricsResult = LyricsResult.Missing,
     val isLoadingLyrics: Boolean = false,
+    val lyricsStatusMessage: String? = null,
     val subtitleTracks: List<SubtitleTrackOption> = emptyList(),
     val activeCues: List<Cue> = emptyList(),
     val sidecarSubtitles: List<SidecarSubtitle> = emptyList(),
     val codecSummary: String = "",
     val errorMessage: String? = null,
+    val lastErrorDiagnosticDetail: String? = null,
     val videoResizeMode: VideoResizeMode = VideoResizeMode.FIT,
 )
 
@@ -74,6 +80,8 @@ class PlaybackController(
     private val scope: CoroutineScope,
     private val mediaRepository: MediaRepository,
     private val lyricsExtractor: EmbeddedLyricsExtractor,
+    private val onlineLyricsService: OnlineLyricsService,
+    private val preferencesRepository: PreferencesRepository,
     private val audioEffectsManager: AudioEffectsManager,
 ) {
     private val _uiState = MutableStateFlow(PlaybackUiState())
@@ -91,7 +99,10 @@ class PlaybackController(
     private var pendingStagedVideoId: Long? = null
     private var isStagedVideoItemsPrepared: Boolean = false
     private var videoSurfaceReadyForStagedId: Long? = null
-    private var softwareFallbackAttemptedForTrackId: Long? = null
+    private var fallbackTrackId: Long? = null
+    private var fallbackAttemptCount: Int = 0
+    private var triedFfmpegVideoForTrack: Boolean = false
+    private var triedFfmpegAudioForTrack: Boolean = false
     private var forcedExtensionFallback: Boolean = false
     private var userPreferExtensionDecoders: Boolean? = null
 
@@ -375,16 +386,18 @@ class PlaybackController(
     }
 
     private fun resetDecoderModeForNewTrack(trackId: Long, onReady: () -> Unit) {
-        val needsReset = softwareFallbackAttemptedForTrackId != null || forcedExtensionFallback
-        if (softwareFallbackAttemptedForTrackId != trackId) {
-            softwareFallbackAttemptedForTrackId = null
-        }
+        val needsReset = fallbackTrackId != null || forcedExtensionFallback || fallbackAttemptCount > 0
+        fallbackTrackId = null
+        fallbackAttemptCount = 0
+        triedFfmpegVideoForTrack = false
+        triedFfmpegAudioForTrack = false
         if (!needsReset) {
             onReady()
             return
         }
         val controller = mediaController
         if (controller == null || !controller.isConnected) {
+            forcedExtensionFallback = false
             onReady()
             return
         }
@@ -414,7 +427,7 @@ class PlaybackController(
     }
 
     fun dismissError() {
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update { it.copy(errorMessage = null, lastErrorDiagnosticDetail = null) }
     }
 
     private fun buildMediaItem(
@@ -452,22 +465,124 @@ class PlaybackController(
             }
         }
         if (track.mediaType == MediaType.AUDIO) {
-            loadLyricsForTrack(track)
+            loadLyricsForTrack(track, forceOnlineRefresh = false)
         } else {
-            _uiState.update { it.copy(lyrics = LyricsResult.Missing, isLoadingLyrics = false) }
+            _uiState.update {
+                it.copy(
+                    lyrics = LyricsResult.Missing,
+                    isLoadingLyrics = false,
+                    lyricsStatusMessage = null,
+                )
+            }
         }
     }
 
-    private fun loadLyricsForTrack(track: MediaTrackEntity) {
+    fun fetchOnlineLyrics(forceRefresh: Boolean = true) {
+        val track = _uiState.value.currentTrack ?: return
+        if (track.mediaType != MediaType.AUDIO) return
+        loadLyricsForTrack(track, forceOnlineRefresh = forceRefresh, forceManualOnline = true)
+    }
+
+    private fun loadLyricsForTrack(
+        track: MediaTrackEntity,
+        forceOnlineRefresh: Boolean = false,
+        forceManualOnline: Boolean = false,
+    ) {
         lyricsJob?.cancel()
-        _uiState.update { it.copy(isLoadingLyrics = true) }
+        _uiState.update { it.copy(isLoadingLyrics = true, lyricsStatusMessage = null) }
         lyricsJob = scope.launch {
-            val result = lyricsExtractor.extract(track.contentUri)
-            _uiState.update {
-                if (it.currentTrack?.mediaStoreId == track.mediaStoreId) {
-                    it.copy(lyrics = result, isLoadingLyrics = false)
-                } else {
-                    it
+            if (!forceManualOnline) {
+                val embedded = lyricsExtractor.extract(track.contentUri)
+                if (embedded !is LyricsResult.Missing) {
+                    _uiState.update {
+                        if (it.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                            it.copy(lyrics = embedded, isLoadingLyrics = false, lyricsStatusMessage = null)
+                        } else {
+                            it
+                        }
+                    }
+                    return@launch
+                }
+
+                val cached = onlineLyricsService.getCachedLyrics(track)
+                if (cached !is LyricsResult.Missing) {
+                    _uiState.update {
+                        if (it.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                            it.copy(lyrics = cached, isLoadingLyrics = false, lyricsStatusMessage = null)
+                        } else {
+                            it
+                        }
+                    }
+                    return@launch
+                }
+            }
+
+            val prefs = runCatching { preferencesRepository.preferences.first() }.getOrNull()
+            val onlineAllowed = forceManualOnline || (prefs?.onlineLyricsEnabled ?: true)
+            if (!onlineAllowed) {
+                _uiState.update {
+                    if (it.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                        it.copy(
+                            lyrics = LyricsResult.Missing,
+                            isLoadingLyrics = false,
+                            lyricsStatusMessage = "Online lyrics lookup is disabled in Settings.",
+                        )
+                    } else {
+                        it
+                    }
+                }
+                return@launch
+            }
+
+            when (val onlineRes = onlineLyricsService.fetchAndCache(track, forceRefresh = forceOnlineRefresh)) {
+                is OnlineLyricsFetchResult.Found -> {
+                    _uiState.update {
+                        if (it.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                            it.copy(lyrics = onlineRes.lyrics, isLoadingLyrics = false, lyricsStatusMessage = null)
+                        } else {
+                            it
+                        }
+                    }
+                }
+                OnlineLyricsFetchResult.Offline -> {
+                    _uiState.update {
+                        if (it.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                            it.copy(
+                                isLoadingLyrics = false,
+                                lyricsStatusMessage = if (forceManualOnline || it.lyrics is LyricsResult.Missing) {
+                                    "Offline — connect to the internet to fetch lyrics."
+                                } else {
+                                    null
+                                },
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                }
+                OnlineLyricsFetchResult.NotFound -> {
+                    _uiState.update {
+                        if (it.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                            it.copy(
+                                isLoadingLyrics = false,
+                                lyricsStatusMessage = "No matching lyrics found on LRCLIB for \"${track.title}\".",
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                }
+                is OnlineLyricsFetchResult.Error -> {
+                    _uiState.update {
+                        if (it.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                            it.copy(
+                                isLoadingLyrics = false,
+                                lyricsStatusMessage = "Lyrics lookup error: ${onlineRes.message}",
+                            )
+                        } else {
+                            it
+                        }
+                    }
                 }
             }
         }
@@ -602,18 +717,45 @@ class PlaybackController(
             val currentState = _uiState.value
             val track = currentState.currentTrack
 
+            if (track != null && fallbackTrackId != track.mediaStoreId) {
+                fallbackTrackId = track.mediaStoreId
+                fallbackAttemptCount = 0
+                val userPrefersExt = userPreferExtensionDecoders == true
+                triedFfmpegVideoForTrack = userPrefersExt
+                triedFfmpegAudioForTrack = userPrefersExt
+            }
+
             if (
                 controller != null &&
                 controller.isConnected &&
                 track != null &&
                 PlaybackDiagnostics.isRecoverableCodecErrorCode(error.errorCode) &&
-                softwareFallbackAttemptedForTrackId != track.mediaStoreId
+                fallbackAttemptCount < 2
             ) {
-                softwareFallbackAttemptedForTrackId = track.mediaStoreId
+                fallbackAttemptCount++
                 val isAudioError = controller.sessionExtras.getBoolean(PlaybackService.EXTRA_LAST_ERROR_IS_AUDIO, false) ||
                     PlaybackDiagnostics.isAudioErrorCode(error.errorCode)
-                val enableFfmpegAudio = isAudioError || (userPreferExtensionDecoders == true)
-                forcedExtensionFallback = isAudioError
+
+                val nextPreferFfmpegVideo: Boolean
+                val nextPreferFfmpegAudio: Boolean
+                if (isAudioError) {
+                    if (!triedFfmpegAudioForTrack) {
+                        triedFfmpegAudioForTrack = true
+                        nextPreferFfmpegAudio = true
+                    } else {
+                        nextPreferFfmpegAudio = false
+                    }
+                    nextPreferFfmpegVideo = triedFfmpegVideoForTrack
+                } else {
+                    if (!triedFfmpegVideoForTrack) {
+                        triedFfmpegVideoForTrack = true
+                        nextPreferFfmpegVideo = true
+                    } else {
+                        nextPreferFfmpegVideo = false
+                    }
+                    nextPreferFfmpegAudio = triedFfmpegAudioForTrack
+                }
+                forcedExtensionFallback = nextPreferFfmpegVideo || nextPreferFfmpegAudio
 
                 val resumePositionMs = controller.currentPosition.coerceAtLeast(0L)
                 val targetIndex = controller.currentMediaItemIndex
@@ -626,9 +768,8 @@ class PlaybackController(
                 val args = Bundle().apply {
                     putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, true)
                     putBoolean(PlaybackService.ARG_EXCLUDE_LAST_FAILED_CODEC, true)
-                    if (enableFfmpegAudio) {
-                        putBoolean(PlaybackService.ARG_PREFER_EXTENSIONS, true)
-                    }
+                    putBoolean(PlaybackService.ARG_PREFER_FFMPEG_VIDEO, nextPreferFfmpegVideo)
+                    putBoolean(PlaybackService.ARG_PREFER_FFMPEG_AUDIO, nextPreferFfmpegAudio)
                 }
                 val future = controller.sendCustomCommand(
                     SessionCommand(PlaybackService.CMD_SET_DECODER_MODE, Bundle.EMPTY),
@@ -663,14 +804,21 @@ class PlaybackController(
 
             val trackName = track?.title ?: "Media file"
             val diagnosticDetail = controller?.sessionExtras?.getString(PlaybackService.EXTRA_LAST_ERROR_DETAIL)
-            val fallbackTried = track != null && softwareFallbackAttemptedForTrackId == track.mediaStoreId
+            val fallbackTried = track != null && fallbackTrackId == track.mediaStoreId && fallbackAttemptCount > 0
             val msg = PlaybackDiagnostics.formatUserErrorMessage(
                 trackName = trackName,
                 errorCodeName = error.errorCodeName,
                 diagnosticDetail = diagnosticDetail,
                 fallbackTried = fallbackTried,
             )
-            _uiState.update { it.copy(errorMessage = msg, isPlaying = false, isBuffering = false) }
+            _uiState.update {
+                it.copy(
+                    errorMessage = msg,
+                    lastErrorDiagnosticDetail = diagnosticDetail,
+                    isPlaying = false,
+                    isBuffering = false,
+                )
+            }
         }
     }
 

@@ -9,6 +9,11 @@ import com.example.data.scanner.SidecarSubtitleFinder
 import com.example.lyrics.EmbeddedLyricsExtractor
 import com.example.media.AudioEffectsManager
 import com.example.media.LocalArtworkLoader
+import com.example.online.AndroidNetworkConnectivityChecker
+import com.example.online.OnlineCodecAdvisor
+import com.example.online.OnlineLyricsService
+import com.example.online.OnlineNetworkClient
+import com.example.online.OnlineSubtitleService
 import com.example.playback.PlaybackController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,12 +30,30 @@ class AppContainer(application: Application) {
     val preferencesRepository: PreferencesRepository = PreferencesRepository(application)
     val artworkLoader: LocalArtworkLoader = LocalArtworkLoader(application)
     val lyricsExtractor: EmbeddedLyricsExtractor = EmbeddedLyricsExtractor(application)
+    val connectivityChecker = AndroidNetworkConnectivityChecker(application)
+    val networkClient: OnlineNetworkClient = OnlineNetworkClient()
+    val onlineLyricsService: OnlineLyricsService = OnlineLyricsService(
+        context = application,
+        networkClient = networkClient,
+        connectivityChecker = connectivityChecker,
+    )
+    val onlineSubtitleService: OnlineSubtitleService = OnlineSubtitleService(
+        context = application,
+        networkClient = networkClient,
+        connectivityChecker = connectivityChecker,
+    )
+    val onlineCodecAdvisor: OnlineCodecAdvisor = OnlineCodecAdvisor(
+        networkClient = networkClient,
+        connectivityChecker = connectivityChecker,
+    )
     val audioEffectsManager: AudioEffectsManager = AudioEffectsManager()
     val playbackController: PlaybackController = PlaybackController(
         context = application,
         scope = appScope,
         mediaRepository = mediaRepository,
         lyricsExtractor = lyricsExtractor,
+        onlineLyricsService = onlineLyricsService,
+        preferencesRepository = preferencesRepository,
         audioEffectsManager = audioEffectsManager,
     )
 }

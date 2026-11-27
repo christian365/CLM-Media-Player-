@@ -116,12 +116,73 @@ class PlaybackFallbackTest {
             baseSelector = baseSelector,
             softwareSelector = baseSelector,
             isFfmpegAudioSupported = { it == "audio/mp4a-latm" },
+            isFfmpegVideoSupported = { it == "video/hevc" },
         ).apply {
             preferFfmpegAudio = true
         }
 
         assertTrue(selector.getDecoderInfos("audio/mp4a-latm", false, false).isEmpty())
         assertEquals(1, selector.getDecoderInfos("video/hevc", false, false).size)
+
+        selector.preferFfmpegVideo = true
+        assertTrue(selector.getDecoderInfos("video/hevc", false, false).isEmpty())
+    }
+
+    @Test
+    fun `ffmpeg video preference falls back to software MediaCodec for unsupported mimes like av1`() {
+        val av1HwCodec = androidx.media3.exoplayer.mediacodec.MediaCodecInfo.newInstance(
+            "c2.qti.av1.decoder",
+            "video/av01",
+            "video/av01",
+            null,
+            true,
+            false,
+            false,
+            false,
+            false,
+        )
+        val av1SwCodec = androidx.media3.exoplayer.mediacodec.MediaCodecInfo.newInstance(
+            "c2.android.av1.decoder",
+            "video/av01",
+            "video/av01",
+            null,
+            false,
+            true,
+            false,
+            false,
+            false,
+        )
+        val hevcSwCodec = androidx.media3.exoplayer.mediacodec.MediaCodecInfo.newInstance(
+            "c2.android.hevc.decoder",
+            "video/hevc",
+            "video/hevc",
+            null,
+            false,
+            true,
+            false,
+            false,
+            false,
+        )
+        val baseSelector = androidx.media3.exoplayer.mediacodec.MediaCodecSelector { mime, _, _ ->
+            when (mime) {
+                "video/av01" -> listOf(av1HwCodec, av1SwCodec)
+                "video/hevc" -> listOf(hevcSwCodec)
+                else -> emptyList()
+            }
+        }
+        val selector = FallbackMediaCodecSelector(
+            baseSelector = baseSelector,
+            softwareSelector = baseSelector,
+            isFfmpegAudioSupported = { false },
+            isFfmpegVideoSupported = { it == "video/hevc" || it == "video/avc" },
+        ).apply {
+            preferFfmpegVideo = true
+            preferSoftwareOnly = true
+        }
+
+        assertTrue(selector.getDecoderInfos("video/hevc", false, false).isEmpty())
+        val av1Decoders = selector.getDecoderInfos("video/av01", false, false)
+        assertEquals(listOf("c2.android.av1.decoder"), av1Decoders.map { it.name })
     }
 
     @Test

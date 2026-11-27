@@ -26,6 +26,10 @@ data class UserPreferences(
     val subtitleTextSizeSp: Float = 18f,
     val subtitleStylePreset: SubtitleStylePreset = SubtitleStylePreset.CLASSIC_OUTLINE,
     val preferExtensionDecoders: Boolean = false,
+    val onlineLyricsEnabled: Boolean = true,
+    val onlineSubtitlesEnabled: Boolean = true,
+    val onlineCodecLookupEnabled: Boolean = true,
+    val openSubtitlesApiKey: String = "",
 )
 
 class PreferencesRepository(private val context: Context) {
@@ -41,6 +45,10 @@ class PreferencesRepository(private val context: Context) {
         val SUBTITLE_TEXT_SIZE = floatPreferencesKey("subtitle_text_size")
         val SUBTITLE_STYLE = stringPreferencesKey("subtitle_style")
         val PREFER_EXTENSION_DECODERS = booleanPreferencesKey("prefer_extension_decoders")
+        val ONLINE_LYRICS_ENABLED = booleanPreferencesKey("online_lyrics_enabled")
+        val ONLINE_SUBTITLES_ENABLED = booleanPreferencesKey("online_subtitles_enabled")
+        val ONLINE_CODEC_LOOKUP_ENABLED = booleanPreferencesKey("online_codec_lookup_enabled")
+        val OPENSUBTITLES_API_KEY = stringPreferencesKey("opensubtitles_api_key")
     }
 
     val preferences: Flow<UserPreferences> = context.cadenceDataStore.data.map { prefs ->
@@ -63,6 +71,10 @@ class PreferencesRepository(private val context: Context) {
                 ?.let { runCatching { SubtitleStylePreset.valueOf(it) }.getOrNull() }
                 ?: SubtitleStylePreset.CLASSIC_OUTLINE,
             preferExtensionDecoders = prefs[Keys.PREFER_EXTENSION_DECODERS] ?: false,
+            onlineLyricsEnabled = prefs[Keys.ONLINE_LYRICS_ENABLED] ?: true,
+            onlineSubtitlesEnabled = prefs[Keys.ONLINE_SUBTITLES_ENABLED] ?: true,
+            onlineCodecLookupEnabled = prefs[Keys.ONLINE_CODEC_LOOKUP_ENABLED] ?: true,
+            openSubtitlesApiKey = prefs[Keys.OPENSUBTITLES_API_KEY].orEmpty(),
         )
     }
 
@@ -116,5 +128,21 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setPreferExtensionDecoders(prefer: Boolean) {
         context.cadenceDataStore.edit { it[Keys.PREFER_EXTENSION_DECODERS] = prefer }
+    }
+
+    suspend fun setOnlineLyricsEnabled(enabled: Boolean) {
+        context.cadenceDataStore.edit { it[Keys.ONLINE_LYRICS_ENABLED] = enabled }
+    }
+
+    suspend fun setOnlineSubtitlesEnabled(enabled: Boolean) {
+        context.cadenceDataStore.edit { it[Keys.ONLINE_SUBTITLES_ENABLED] = enabled }
+    }
+
+    suspend fun setOnlineCodecLookupEnabled(enabled: Boolean) {
+        context.cadenceDataStore.edit { it[Keys.ONLINE_CODEC_LOOKUP_ENABLED] = enabled }
+    }
+
+    suspend fun setOpenSubtitlesApiKey(apiKey: String) {
+        context.cadenceDataStore.edit { it[Keys.OPENSUBTITLES_API_KEY] = apiKey.trim() }
     }
 }

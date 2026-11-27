@@ -111,13 +111,13 @@ dependencies {
   // implementation(libs.play.services.location)
   // implementation(libs.retrofit)
 
-  // AndroidX Media3 + FFmpeg software decoder fallback
+  // AndroidX Media3 + NextLib FFmpeg video/audio software decoder fallback
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.session)
   implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.extractor)
   implementation(libs.androidx.media3.common)
-  implementation(libs.jellyfin.media3.ffmpeg.decoder)
+  implementation(libs.nextlib.media3ext)
 
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)

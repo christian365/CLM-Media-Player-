@@ -48,10 +48,12 @@ import com.example.R
 import com.example.data.local.SubtitleStylePreset
 import com.example.data.local.UserPreferences
 import com.example.media.SleepTimerState
+import com.example.online.OnlineSubtitleCandidate
 import com.example.playback.PlaybackUiState
 import com.example.playback.SubtitleOverlayHelper
 import com.example.playback.SubtitleTrackOption
 import com.example.playback.VideoResizeMode
+import com.example.ui.OnlineSubtitlesUiState
 import com.example.ui.components.FormatBadgePill
 import com.example.ui.components.VideoGestureOverlay
 import com.example.ui.components.formatDurationMs
@@ -77,6 +79,10 @@ fun VideoPlayerScreen(
     onOpenSpeedSheet: () -> Unit,
     onOpenSleepTimerSheet: () -> Unit,
     onVideoSurfaceAttached: () -> Unit = {},
+    onlineSubtitlesState: OnlineSubtitlesUiState = OnlineSubtitlesUiState(),
+    defaultSubtitleSearchQuery: String = "",
+    onSearchOnlineSubtitles: (String, String) -> Unit = { _, _ -> },
+    onDownloadOnlineSubtitle: (OnlineSubtitleCandidate, () -> Unit) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     if (player == null) { onNavigateBack(); return }
@@ -270,13 +276,112 @@ fun VideoPlayerScreen(
         }
 
         if (showSubtitleSheet) {
-            ModalBottomSheet(onDismissRequest = { showSubtitleSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.90f)) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(text = stringResource(R.string.subtitles_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 12.dp))
-                    FilterChip(selected = selectedTrack == null, onClick = { selectedTrack = null; onSelectSubtitleTrack(null) }, label = { Text(stringResource(R.string.subtitles_off)) }, leadingIcon = if (selectedTrack == null) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
-                    LazyColumn(modifier = Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { items(playbackState.subtitleTracks) { track -> FilterChip(selected = selectedTrack == track, onClick = { selectedTrack = track; onSelectSubtitleTrack(track) }, label = { Text(text = track.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }, leadingIcon = if (selectedTrack == track) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth()) } }
+            var subQuery by remember(playbackState.currentTrack?.mediaStoreId, defaultSubtitleSearchQuery) {
+                mutableStateOf(defaultSubtitleSearchQuery)
+            }
+            var selectedLang by remember { mutableStateOf("en") }
+            ModalBottomSheet(onDismissRequest = { showSubtitleSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
+                    Text(text = stringResource(R.string.subtitles_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 10.dp))
+                    FilterChip(selected = selectedTrack == null, onClick = { selectedTrack = null; onSelectSubtitleTrack(null) }, label = { Text(stringResource(R.string.subtitles_off)) }, leadingIcon = if (selectedTrack == null) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 160.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        items(playbackState.subtitleTracks) { track ->
+                            FilterChip(selected = selectedTrack == track, onClick = { selectedTrack = track; onSelectSubtitleTrack(track) }, label = { Text(text = track.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }, leadingIcon = if (selectedTrack == track) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedButton(onClick = { subtitlePickerLauncher.launch(arrayOf("text/*")) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.load_sidecar_subtitle))
+                    }
+
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                    OutlinedButton(onClick = { subtitlePickerLauncher.launch(arrayOf("text/*")) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Rounded.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.load_sidecar_subtitle)) }
+                    Text(text = stringResource(R.string.search_online_subtitles), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.height(6.dp))
+                    if (!preferences.onlineSubtitlesEnabled) {
+                        Text(
+                            text = "Online subtitle search is turned off in Settings.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = subQuery,
+                            onValueChange = { subQuery = it },
+                            singleLine = true,
+                            label = { Text("Title or episode") },
+                            modifier = Modifier.fillMaxWidth().testTag("online_subtitle_query_input"),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            listOf("" to "All", "en" to "EN", "es" to "ES", "fr" to "FR", "ja" to "JA").forEach { (code, label) ->
+                                FilterChip(
+                                    selected = selectedLang == code,
+                                    onClick = { selectedLang = code },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        FilledTonalButton(
+                            onClick = { onSearchOnlineSubtitles(subQuery, selectedLang) },
+                            enabled = !onlineSubtitlesState.isSearching && !onlineSubtitlesState.isDownloading && subQuery.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth().testTag("search_online_subtitles_button"),
+                        ) {
+                            if (onlineSubtitlesState.isSearching || onlineSubtitlesState.isDownloading) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                            } else {
+                                Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text(
+                                when {
+                                    onlineSubtitlesState.isDownloading -> "Downloading subtitle…"
+                                    onlineSubtitlesState.isSearching -> "Searching…"
+                                    else -> "Search Online"
+                                }
+                            )
+                        }
+                        onlineSubtitlesState.statusMessage?.let { msg ->
+                            Spacer(Modifier.height(6.dp))
+                            Text(text = msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (onlineSubtitlesState.results.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            LazyColumn(modifier = Modifier.heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(onlineSubtitlesState.results, key = { "${it.provider.name}_${it.id}" }) { candidate ->
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        tonalElevation = 2.dp,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(enabled = !onlineSubtitlesState.isDownloading) {
+                                                onDownloadOnlineSubtitle(candidate) { showSubtitleSheet = false }
+                                            },
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(candidate.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                Text("${candidate.language.uppercase()} • ${candidate.format.uppercase()} • ${candidate.provider.label}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Icon(Icons.Rounded.Download, contentDescription = "Download subtitle", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
                 }
             }
         }

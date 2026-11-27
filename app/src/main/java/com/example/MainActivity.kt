@@ -1,7 +1,9 @@
 package com.example
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,15 +16,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.material.icons.Icons
@@ -159,6 +168,8 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
   val audioEffectsState by viewModel.audioEffectsState.collectAsStateWithLifecycle()
   val preferences by viewModel.preferences.collectAsStateWithLifecycle()
   val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+  val onlineSubtitlesState by viewModel.onlineSubtitlesState.collectAsStateWithLifecycle()
+  val codecAdvisorState by viewModel.codecAdvisorState.collectAsStateWithLifecycle()
   var showQueueSheet by remember { mutableStateOf(false) }
   var showEqSheet by remember { mutableStateOf(false) }
   var showSleepSheet by remember { mutableStateOf(false) }
@@ -301,7 +312,12 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
                 onBackgroundPresetChange = viewModel::setBackgroundPreset, onBackgroundOverlayOpacityChange = viewModel::setBackgroundOverlayOpacity,
                 onPickCustomBackgroundUri = viewModel::pickCustomBackgroundUri, onSubtitlesDefaultChange = viewModel::setSubtitlesEnabledByDefault,
                 onSubtitleSizeChange = viewModel::setSubtitleTextSizeSp, onSubtitlePresetChange = viewModel::setSubtitleStylePreset,
-                onPreferExtensionDecodersChange = viewModel::setPreferExtensionDecoders, modifier = Modifier,
+                onPreferExtensionDecodersChange = viewModel::setPreferExtensionDecoders,
+                onOnlineLyricsChange = viewModel::setOnlineLyricsEnabled,
+                onOnlineSubtitlesChange = viewModel::setOnlineSubtitlesEnabled,
+                onOnlineCodecLookupChange = viewModel::setOnlineCodecLookupEnabled,
+                onOpenSubtitlesApiKeyChange = viewModel::setOpenSubtitlesApiKey,
+                modifier = Modifier,
               )
             }
             composable<RouteNowPlaying> {
@@ -312,6 +328,7 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
                 onToggleShuffle = viewModel.playbackController::toggleShuffle, onCycleRepeat = viewModel.playbackController::cycleRepeatMode,
                 onOpenQueue = { showQueueSheet = true }, onOpenEqualizer = { showEqSheet = true }, onOpenSpeedPitch = { showSpeedPitchSheet = true },
                 onOpenSleepTimer = { showSleepSheet = true }, onOpenAddToPlaylist = { playbackState.currentTrack?.let { playlistTargetTrack = it } },
+                onFetchOnlineLyrics = viewModel::fetchOnlineLyrics,
                 modifier = Modifier.statusBarsPadding(),
               )
             }
@@ -324,6 +341,10 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
                 onUpdateSubtitleSize = viewModel::setSubtitleTextSizeSp, onUpdateSubtitlePreset = viewModel::setSubtitleStylePreset,
                 onOpenSpeedSheet = { showSpeedPitchSheet = true }, onOpenSleepTimerSheet = { showSleepSheet = true },
                 onVideoSurfaceAttached = viewModel.playbackController::startStagedVideoIfReady,
+                onlineSubtitlesState = onlineSubtitlesState,
+                defaultSubtitleSearchQuery = viewModel.defaultSubtitleSearchQueryFor(playbackState.currentTrack),
+                onSearchOnlineSubtitles = viewModel::searchOnlineSubtitles,
+                onDownloadOnlineSubtitle = viewModel::downloadOnlineSubtitle,
               )
             }
           }
@@ -332,9 +353,10 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
           }
           playbackState.errorMessage?.let { errorMsg ->
             Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.88f), tonalElevation = 6.dp, modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(14.dp).fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), RoundedCornerShape(14.dp))) {
-              Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
                 Text(text = errorMsg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.weight(1f))
+                TextButton(onClick = viewModel::openCodecAdvisor, modifier = Modifier.testTag("playback_error_codec_help")) { Text(stringResource(R.string.playback_error_codec_help)) }
                 if (playbackState.queue.size > 1) {
                   TextButton(onClick = { viewModel.playbackController.dismissError(); viewModel.playbackController.skipToNext() }) { Text(stringResource(R.string.playback_error_skip)) }
                 }
@@ -345,6 +367,61 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
         }
       }
     }
+  }
+
+  if (codecAdvisorState.isVisible) {
+    AlertDialog(
+      onDismissRequest = viewModel::dismissCodecAdvisor,
+      title = { Text("Codec Diagnostics & Help") },
+      text = {
+        if (codecAdvisorState.isLoading || codecAdvisorState.report == null) {
+          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            Text("Inspecting device codecs and online format guide…", style = MaterialTheme.typography.bodyMedium)
+          }
+        } else {
+          val report = codecAdvisorState.report!!
+          Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("File: ${report.trackTitle}", style = MaterialTheme.typography.titleSmall)
+            Text("Detected format: ${report.detectedMime ?: "Unknown"}", style = MaterialTheme.typography.bodySmall)
+            Text("Bundled FFmpeg support: ${if (report.bundledFfmpegSupported) "Supported" else "Not supported"}", style = MaterialTheme.typography.bodySmall)
+            if (report.hardwareCodecs.isNotEmpty() || report.softwareCodecs.isNotEmpty()) {
+              Text(
+                "Device decoders: ${(report.hardwareCodecs + report.softwareCodecs).take(4).joinToString(", ")}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+            Text(report.recommendation, style = MaterialTheme.typography.bodyMedium)
+            report.onlineSummary?.let { summary ->
+              Spacer(Modifier.height(4.dp))
+              Text("Online Format Reference", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+              Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          }
+        }
+      },
+      confirmButton = {
+        val track = playbackState.currentTrack
+        if (track != null) {
+          TextButton(onClick = {
+            viewModel.dismissCodecAdvisor()
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+              setDataAndType(Uri.parse(track.contentUri), if (track.mediaType == MediaType.VIDEO) "video/*" else "audio/*")
+              addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            runCatching { context.startActivity(Intent.createChooser(intent, "Open with")) }
+          }) {
+            Text("Open External")
+          }
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = viewModel::dismissCodecAdvisor) {
+          Text("Close")
+        }
+      },
+    )
   }
 
   if (showThemeStudioSheet) {

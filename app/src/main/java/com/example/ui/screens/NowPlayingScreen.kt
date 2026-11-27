@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lyrics
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -104,6 +106,7 @@ fun NowPlayingScreen(
     onOpenSpeedPitch: () -> Unit,
     onOpenSleepTimer: () -> Unit,
     onOpenAddToPlaylist: () -> Unit,
+    onFetchOnlineLyrics: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val track = playbackState.currentTrack
@@ -270,8 +273,10 @@ fun NowPlayingScreen(
                         LyricsPanel(
                             lyrics = playbackState.lyrics,
                             isLoading = playbackState.isLoadingLyrics,
+                            statusMessage = playbackState.lyricsStatusMessage,
                             positionMs = playbackState.positionMs,
                             onSeekToTimestamp = onSeekTo,
+                            onFetchOnlineLyrics = onFetchOnlineLyrics,
                         )
                     }
                 }
@@ -488,8 +493,10 @@ fun NowPlayingScreen(
 private fun LyricsPanel(
     lyrics: LyricsResult,
     isLoading: Boolean,
+    statusMessage: String?,
     positionMs: Long,
     onSeekToTimestamp: (Long) -> Unit,
+    onFetchOnlineLyrics: () -> Unit,
 ) {
     val panelShape = RoundedCornerShape(22.dp)
     MacGlassContainer(
@@ -528,11 +535,24 @@ private fun LyricsPanel(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         FormatBadgePill(label = stringResource(R.string.synced_lyrics_badge))
-                        Text(
-                            text = lyrics.sourceTag,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = lyrics.sourceTag,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            IconButton(
+                                onClick = onFetchOnlineLyrics,
+                                modifier = Modifier.size(32.dp).testTag("refresh_online_lyrics_button"),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CloudDownload,
+                                    contentDescription = stringResource(R.string.search_online_lyrics),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
                     }
 
                     LazyColumn(
@@ -583,11 +603,24 @@ private fun LyricsPanel(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
-                        Text(
-                            text = lyrics.sourceTag,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = lyrics.sourceTag,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            IconButton(
+                                onClick = onFetchOnlineLyrics,
+                                modifier = Modifier.size(32.dp).testTag("refresh_online_lyrics_button"),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CloudDownload,
+                                    contentDescription = stringResource(R.string.search_online_lyrics),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
                     }
                     LazyColumn(
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
@@ -627,11 +660,24 @@ private fun LyricsPanel(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = stringResource(R.string.no_lyrics_hint),
+                        text = statusMessage ?: stringResource(R.string.no_lyrics_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
+                    Spacer(Modifier.height(14.dp))
+                    FilledTonalButton(
+                        onClick = onFetchOnlineLyrics,
+                        modifier = Modifier.testTag("fetch_online_lyrics_button"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.CloudDownload,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.size(8.dp))
+                        Text(stringResource(R.string.search_online_lyrics))
+                    }
                 }
             }
         }
