@@ -59,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -74,13 +75,17 @@ import com.example.lyrics.LrcParser
 import com.example.lyrics.LyricsResult
 import com.example.media.LocalArtworkLoader
 import com.example.media.SleepTimerState
+import com.example.media.rememberTrackArtwork
 import com.example.playback.PlaybackUiState
 import com.example.ui.components.FormatBadgePill
-import com.example.ui.components.MacTrafficLights
 import com.example.ui.components.TrackArtworkThumb
 import com.example.ui.components.formatDurationMs
 import com.example.ui.components.macGlassBorderColor
+import com.example.ui.theme.GlassTier
 import com.example.ui.theme.LocalCadenceAppearance
+import com.example.ui.theme.MacBlurredArtworkLayer
+import com.example.ui.theme.MacGlassContainer
+import com.example.ui.theme.macGlassSurface
 
 @Composable
 fun NowPlayingScreen(
@@ -105,28 +110,35 @@ fun NowPlayingScreen(
     var showLyrics by remember { mutableStateOf(false) }
 
     val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
+    val ambientArtwork = track?.let {
+        rememberTrackArtwork(loader = artworkLoader, track = it, targetSizePx = 256)
+    }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    if (hasBg) {
-                        listOf(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.35f),
-                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.55f),
-                        )
-                    } else {
-                        listOf(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f),
-                            MaterialTheme.colorScheme.background,
-                            MaterialTheme.colorScheme.surfaceContainerLowest,
-                        )
-                    }
-                )
-            ),
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        // Full-bleed dynamic blurred artwork glass backdrop
+        MacBlurredArtworkLayer(bitmap = ambientArtwork)
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        if (hasBg || ambientArtwork != null) {
+                            listOf(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.16f),
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.34f),
+                            )
+                        } else {
+                            listOf(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.55f),
+                                MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.72f),
+                            )
+                        }
+                    )
+                ),
+        )
         if (track == null) {
             Column(
                 modifier = Modifier
@@ -156,29 +168,23 @@ fun NowPlayingScreen(
         ) {
             val glassBorder = macGlassBorderColor()
 
-            // Top Bar (macOS sheet header)
+            // Top Bar (macOS frosted sheet header)
+            val headerShape = RoundedCornerShape(18.dp)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .macGlassSurface(shape = headerShape, tier = GlassTier.PANEL)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("now_playing_back"),
                 ) {
-                    MacTrafficLights(
-                        onCloseClick = onNavigateBack,
-                        onMinimizeClick = onNavigateBack,
-                        onZoomClick = { showLyrics = !showLyrics },
-                    )
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("now_playing_back"),
-                    ) {
-                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Collapse player")
-                    }
+                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Collapse player")
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -199,15 +205,12 @@ fun NowPlayingScreen(
                 }
 
                 // Cover / Lyrics toggle pill
+                val pillShape = RoundedCornerShape(20.dp)
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = if (showLyrics) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainerHigh
-                    },
+                    shape = pillShape,
+                    color = Color.Transparent,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
+                        .macGlassSurface(shape = pillShape, tier = GlassTier.CARD, tintedPrimary = showLyrics)
                         .clickable { showLyrics = !showLyrics }
                         .testTag("toggle_lyrics_button"),
                 ) {
@@ -245,16 +248,23 @@ fun NowPlayingScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
                         ) {
-                            TrackArtworkThumb(
-                                loader = artworkLoader,
-                                track = track,
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth(0.84f)
-                                    .aspectRatio(1f),
-                                cornerRadius = 26.dp,
-                                targetSizePx = 640,
-                                showFallbackBadge = true,
-                            )
+                                    .aspectRatio(1f)
+                                    .shadow(20.dp, RoundedCornerShape(28.dp), clip = false)
+                                    .macGlassSurface(shape = RoundedCornerShape(28.dp), tier = GlassTier.CARD)
+                                    .padding(6.dp),
+                            ) {
+                                TrackArtworkThumb(
+                                    loader = artworkLoader,
+                                    track = track,
+                                    modifier = Modifier.fillMaxSize(),
+                                    cornerRadius = 22.dp,
+                                    targetSizePx = 640,
+                                    showFallbackBadge = true,
+                                )
+                            }
                         }
                     } else {
                         LyricsPanel(
@@ -269,155 +279,166 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(14.dp))
 
-            // Track Info
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.Start,
-            ) {
-                Text(
-                    text = track.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${track.artist} — ${track.album}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // Seek Bar
-            val duration = playbackState.durationMs.coerceAtLeast(1L)
-            var isDragging by remember { mutableStateOf(false) }
-            var dragFraction by remember { mutableFloatStateOf(0f) }
-            val currentFraction = if (isDragging) {
-                dragFraction
-            } else {
-                (playbackState.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-            }
-
-            Slider(
-                value = currentFraction,
-                onValueChange = {
-                    isDragging = true
-                    dragFraction = it
-                },
-                onValueChangeFinished = {
-                    onSeekTo((dragFraction * duration).toLong())
-                    isDragging = false
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                ),
+            // Frosted Glass Player Transport & Seek Deck
+            val deckShape = RoundedCornerShape(26.dp)
+            MacGlassContainer(
+                shape = deckShape,
+                tier = GlassTier.PLAYER_DECK,
+                ambientBitmap = ambientArtwork,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("now_playing_seek_slider"),
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .shadow(12.dp, deckShape, clip = false),
             ) {
-                val displayedPos = if (isDragging) (dragFraction * duration).toLong() else playbackState.positionMs
-                Text(
-                    text = formatDurationMs(displayedPos),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = formatDurationMs(playbackState.durationMs),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                ) {
+                    // Track Info
+                    Text(
+                        text = track.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${track.artist} — ${track.album}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // Seek Bar
+                    val duration = playbackState.durationMs.coerceAtLeast(1L)
+                    var isDragging by remember { mutableStateOf(false) }
+                    var dragFraction by remember { mutableFloatStateOf(0f) }
+                    val currentFraction = if (isDragging) {
+                        dragFraction
+                    } else {
+                        (playbackState.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                    }
+
+                    Slider(
+                        value = currentFraction,
+                        onValueChange = {
+                            isDragging = true
+                            dragFraction = it
+                        },
+                        onValueChangeFinished = {
+                            onSeekTo((dragFraction * duration).toLong())
+                            isDragging = false
+                        },
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("now_playing_seek_slider"),
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        val displayedPos = if (isDragging) (dragFraction * duration).toLong() else playbackState.positionMs
+                        Text(
+                            text = formatDurationMs(displayedPos),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = formatDurationMs(playbackState.durationMs),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Primary Transport Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(
+                            onClick = onToggleShuffle,
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .testTag("now_playing_shuffle"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = if (playbackState.shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onSkipPrevious,
+                            modifier = Modifier
+                                .size(54.dp)
+                                .testTag("now_playing_prev"),
+                        ) {
+                            Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(34.dp))
+                        }
+
+                        FilledIconButton(
+                            onClick = onTogglePlayPause,
+                            shape = CircleShape,
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                            modifier = Modifier
+                                .size(66.dp)
+                                .testTag("now_playing_play_pause"),
+                        ) {
+                            Icon(
+                                imageVector = if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                                modifier = Modifier.size(36.dp),
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onSkipNext,
+                            modifier = Modifier
+                                .size(54.dp)
+                                .testTag("now_playing_next"),
+                        ) {
+                            Icon(Icons.Rounded.SkipNext, contentDescription = "Next", modifier = Modifier.size(34.dp))
+                        }
+
+                        IconButton(
+                            onClick = onCycleRepeat,
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .testTag("now_playing_repeat"),
+                        ) {
+                            val (icon, tint) = when (playbackState.repeatMode) {
+                                Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne to MaterialTheme.colorScheme.primary
+                                Player.REPEAT_MODE_ALL -> Icons.Rounded.Repeat to MaterialTheme.colorScheme.primary
+                                else -> Icons.Rounded.Repeat to MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                            Icon(icon, contentDescription = "Repeat mode", tint = tint)
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(10.dp))
 
-            // Primary Transport Controls
-            Row(
+            // Secondary Audio Tools Row (Frosted Glass Dock)
+            val toolsShape = RoundedCornerShape(18.dp)
+            MacGlassContainer(
+                shape = toolsShape,
+                tier = GlassTier.PANEL,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = onToggleShuffle,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("now_playing_shuffle"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Shuffle,
-                        contentDescription = "Shuffle",
-                        tint = if (playbackState.shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                IconButton(
-                    onClick = onSkipPrevious,
-                    modifier = Modifier
-                        .size(54.dp)
-                        .testTag("now_playing_prev"),
-                ) {
-                    Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(34.dp))
-                }
-
-                FilledIconButton(
-                    onClick = onTogglePlayPause,
-                    shape = CircleShape,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                    modifier = Modifier
-                        .size(68.dp)
-                        .testTag("now_playing_play_pause"),
-                ) {
-                    Icon(
-                        imageVector = if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                        modifier = Modifier.size(36.dp),
-                    )
-                }
-
-                IconButton(
-                    onClick = onSkipNext,
-                    modifier = Modifier
-                        .size(54.dp)
-                        .testTag("now_playing_next"),
-                ) {
-                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next", modifier = Modifier.size(34.dp))
-                }
-
-                IconButton(
-                    onClick = onCycleRepeat,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("now_playing_repeat"),
-                ) {
-                    val (icon, tint) = when (playbackState.repeatMode) {
-                        Player.REPEAT_MODE_ONE -> Icons.Rounded.RepeatOne to MaterialTheme.colorScheme.primary
-                        Player.REPEAT_MODE_ALL -> Icons.Rounded.Repeat to MaterialTheme.colorScheme.primary
-                        else -> Icons.Rounded.Repeat to MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Icon(icon, contentDescription = "Repeat mode", tint = tint)
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Secondary Audio Tools Row
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.84f else 0.96f),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, macGlassBorderColor(), RoundedCornerShape(18.dp)),
             ) {
                 Row(
                     modifier = Modifier
@@ -470,12 +491,12 @@ private fun LyricsPanel(
     positionMs: Long,
     onSeekToTimestamp: (Long) -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.80f),
+    val panelShape = RoundedCornerShape(22.dp)
+    MacGlassContainer(
+        shape = panelShape,
+        tier = GlassTier.PLAYER_DECK,
         modifier = Modifier
             .fillMaxSize()
-            .border(1.dp, macGlassBorderColor(), RoundedCornerShape(22.dp))
             .testTag("lyrics_panel"),
     ) {
         when {

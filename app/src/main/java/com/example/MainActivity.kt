@@ -19,8 +19,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -81,7 +85,9 @@ import com.example.ui.screens.PlaylistsScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.VideoPlayerScreen
 import com.example.ui.theme.CadenceTheme
-import com.example.ui.theme.LocalCadenceAppearance
+import com.example.ui.theme.GlassTier
+import com.example.ui.theme.macGlassSurface
+import com.example.ui.theme.rememberGlassTokens
 import kotlinx.serialization.Serializable
 
 @Serializable data object RouteLibrary
@@ -161,7 +167,7 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
   var playlistTargetTrack by remember { mutableStateOf<MediaTrackEntity?>(null) }
 
   Box(modifier = Modifier.fillMaxSize()) {
-    if (LocalCadenceAppearance.current.hasDecorativeBackground && !isVideoPlayerRoute) {
+    if (!isVideoPlayerRoute) {
       AppBackgroundLayer(preset = preferences.backgroundPreset, overlayOpacity = preferences.backgroundOverlayOpacity, customBackgroundPath = preferences.customBackgroundPath, modifier = Modifier.fillMaxSize())
     }
     Scaffold(
@@ -180,11 +186,26 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
       },
       bottomBar = {
         if (!isFullPlayerRoute && !useNavRail) {
+          val navTokens = rememberGlassTokens(tier = GlassTier.CHROME)
           Column {
             if (playbackState.currentTrack?.mediaType == MediaType.AUDIO) {
               MiniPlayerBar(playbackState = playbackState, artworkLoader = viewModel.artworkLoader, onOpenNowPlaying = { navController.navigate(RouteNowPlaying) }, onTogglePlayPause = viewModel.playbackController::togglePlayPause, onSkipNext = viewModel.playbackController::skipToNext)
             }
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f)) {
+            Box(
+              modifier = Modifier
+                .fillMaxWidth()
+                .background(navTokens.fillBrush)
+                .background(navTokens.specularBrush)
+                .drawBehind {
+                  drawLine(
+                    color = Color.White.copy(alpha = 0.22f),
+                    start = Offset(0f, 0f),
+                    end = Offset(size.width, 0f),
+                    strokeWidth = 1f,
+                  )
+                },
+            ) {
+              NavigationBar(containerColor = Color.Transparent) {
               NavigationBarItem(
                 selected = currentDest?.hasRoute<RouteLibrary>() == true,
                 onClick = { navController.navigate(RouteLibrary) { popUpTo(RouteLibrary) { inclusive = false }; launchSingleTop = true } },
@@ -209,6 +230,7 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
                 colors = NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary, indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant, unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant),
                 modifier = Modifier.testTag("nav_settings"),
               )
+              }
             }
           }
         }
@@ -308,7 +330,7 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
             MiniPlayerBar(playbackState = playbackState, artworkLoader = viewModel.artworkLoader, onOpenNowPlaying = { navController.navigate(RouteNowPlaying) }, onTogglePlayPause = viewModel.playbackController::togglePlayPause, onSkipNext = viewModel.playbackController::skipToNext, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp))
           }
           playbackState.errorMessage?.let { errorMsg ->
-            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.errorContainer, tonalElevation = 6.dp, modifier = Modifier.align(Alignment.TopCenter).padding(14.dp).fillMaxWidth()) {
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.88f), tonalElevation = 6.dp, modifier = Modifier.align(Alignment.TopCenter).padding(14.dp).fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), RoundedCornerShape(14.dp))) {
               Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
                 Text(text = errorMsg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.weight(1f))

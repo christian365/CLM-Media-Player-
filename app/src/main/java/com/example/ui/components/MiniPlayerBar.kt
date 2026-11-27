@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,17 +17,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.media.LocalArtworkLoader
+import com.example.media.rememberTrackArtwork
 import com.example.playback.PlaybackUiState
+import com.example.ui.theme.GlassTier
+import com.example.ui.theme.MacGlassContainer
 
 @Composable
 fun MiniPlayerBar(
@@ -44,18 +45,19 @@ fun MiniPlayerBar(
         (playbackState.positionMs.toFloat() / playbackState.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
-    val shape = RoundedCornerShape(10.dp)
-    Surface(
+    val shape = RoundedCornerShape(16.dp)
+    val ambientArtwork = rememberTrackArtwork(loader = artworkLoader, track = track, targetSizePx = 128)
+
+    MacGlassContainer(
+        shape = shape,
+        tier = GlassTier.PLAYER_DECK,
+        ambientBitmap = ambientArtwork,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clip(shape)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+            .shadow(10.dp, shape, clip = false)
             .clickable(onClick = onOpenNowPlaying)
             .testTag("mini_player_bar"),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
-        shadowElevation = 8.dp,
-        tonalElevation = 0.dp,
     ) {
         Column {
             Row(
@@ -67,7 +69,7 @@ fun MiniPlayerBar(
                     loader = artworkLoader,
                     track = track,
                     modifier = Modifier.size(44.dp),
-                    cornerRadius = 6.dp,
+                    cornerRadius = 10.dp,
                     targetSizePx = 128,
                 )
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
@@ -75,13 +77,15 @@ fun MiniPlayerBar(
                         track.title,
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         "${track.artist} • ${formatExtensionTag(track)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 IconButton(onClick = onTogglePlayPause, modifier = Modifier.testTag("mini_player_play_pause")) {
@@ -104,8 +108,8 @@ fun MiniPlayerBar(
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.fillMaxWidth().height(3.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
             )
         }
     }

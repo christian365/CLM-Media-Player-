@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
@@ -54,6 +55,8 @@ import com.example.playback.VideoResizeMode
 import com.example.ui.components.FormatBadgePill
 import com.example.ui.components.VideoGestureOverlay
 import com.example.ui.components.formatDurationMs
+import com.example.ui.theme.GlassTier
+import com.example.ui.theme.MacGlassContainer
 import kotlinx.coroutines.delay
 
 @Composable
@@ -90,7 +93,7 @@ fun VideoPlayerScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
-                if (!playbackState.currentTrack?.let { it.mediaType == com.example.data.local.MediaType.AUDIO }!!) {
+                if (playbackState.currentTrack?.mediaType != com.example.data.local.MediaType.AUDIO) {
                     player.pause()
                 }
             }
@@ -134,32 +137,80 @@ fun VideoPlayerScreen(
         }, modifier = Modifier.fillMaxSize())
 
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.82f))))) {
-                Row(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp).align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onNavigateBack, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_back_button")) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White) }
-                    Column(modifier = Modifier.weight(1f)) { Text(text = playbackState.currentTrack?.title ?: "Video Player", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis); if (playbackState.codecSummary.isNotBlank()) Text(text = playbackState.codecSummary, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.78f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    FormatBadgePill(label = playbackState.videoResizeMode.label, containerColor = Color.White.copy(alpha = 0.16f), contentColor = Color.White, modifier = Modifier.clickable(onClick = onCycleResizeMode))
-                    IconButton(onClick = { isLandscapeForced = !isLandscapeForced; activity?.requestedOrientation = if (isLandscapeForced) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }, modifier = Modifier.minimumInteractiveComponentSize()) { Icon(Icons.Rounded.ScreenRotation, contentDescription = "Orientation", tint = Color.White) }
+            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.44f), Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.56f))))) {
+                // Floating macOS smoked glass top HUD bar
+                MacGlassContainer(
+                    shape = RoundedCornerShape(18.dp),
+                    tier = GlassTier.HUD_DARK,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                        .align(Alignment.TopCenter),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        IconButton(onClick = onNavigateBack, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_back_button")) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = playbackState.currentTrack?.title ?: "Video Player", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (playbackState.codecSummary.isNotBlank()) {
+                                Text(text = playbackState.codecSummary, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                        FormatBadgePill(label = playbackState.videoResizeMode.label, containerColor = Color.White.copy(alpha = 0.16f), contentColor = Color.White, modifier = Modifier.clickable(onClick = onCycleResizeMode))
+                        IconButton(onClick = { isLandscapeForced = !isLandscapeForced; activity?.requestedOrientation = if (isLandscapeForced) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }, modifier = Modifier.minimumInteractiveComponentSize()) {
+                            Icon(Icons.Rounded.ScreenRotation, contentDescription = "Orientation", tint = Color.White)
+                        }
+                    }
                 }
-                Row(modifier = Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { onSeekBy(-10_000L) }, modifier = Modifier.size(56.dp).testTag("video_rewind_10")) { Icon(Icons.Rounded.Replay10, contentDescription = "Rewind 10s", tint = Color.White, modifier = Modifier.size(36.dp)) }
-                    FilledIconButton(onClick = onTogglePlayPause, shape = CircleShape, colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary), modifier = Modifier.size(68.dp).testTag("video_play_pause")) { Icon(if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = if (playbackState.isPlaying) "Pause" else "Play", modifier = Modifier.size(38.dp)) }
-                    IconButton(onClick = { onSeekBy(10_000L) }, modifier = Modifier.size(56.dp).testTag("video_forward_10")) { Icon(Icons.Rounded.Forward10, contentDescription = "Forward 10s", tint = Color.White, modifier = Modifier.size(36.dp)) }
+
+                // Floating glass center transport pods
+                Row(modifier = Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    MacGlassContainer(shape = CircleShape, tier = GlassTier.HUD_DARK, modifier = Modifier.size(56.dp)) {
+                        IconButton(onClick = { onSeekBy(-10_000L) }, modifier = Modifier.fillMaxSize().testTag("video_rewind_10")) {
+                            Icon(Icons.Rounded.Replay10, contentDescription = "Rewind 10s", tint = Color.White, modifier = Modifier.size(30.dp))
+                        }
+                    }
+                    FilledIconButton(onClick = onTogglePlayPause, shape = CircleShape, colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f), contentColor = MaterialTheme.colorScheme.onPrimary), modifier = Modifier.size(68.dp).testTag("video_play_pause")) {
+                        Icon(if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = if (playbackState.isPlaying) "Pause" else "Play", modifier = Modifier.size(38.dp))
+                    }
+                    MacGlassContainer(shape = CircleShape, tier = GlassTier.HUD_DARK, modifier = Modifier.size(56.dp)) {
+                        IconButton(onClick = { onSeekBy(10_000L) }, modifier = Modifier.fillMaxSize().testTag("video_forward_10")) {
+                            Icon(Icons.Rounded.Forward10, contentDescription = "Forward 10s", tint = Color.White, modifier = Modifier.size(30.dp))
+                        }
+                    }
                 }
-                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp).align(Alignment.BottomCenter)) {
-                    val duration = playbackState.durationMs.coerceAtLeast(1L)
-                    var isDragging by remember { mutableStateOf(false) }
-                    var dragFraction by remember { mutableFloatStateOf(0f) }
-                    val sliderVal = if (isDragging) dragFraction else (playbackState.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-                    Slider(value = sliderVal, onValueChange = { isDragging = true; dragFraction = it }, onValueChangeFinished = { onSeekTo((dragFraction * duration).toLong()); isDragging = false }, colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = Color.White.copy(alpha = 0.32f)), modifier = Modifier.fillMaxWidth())
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "${formatDurationMs(if (isDragging) (dragFraction * duration).toLong() else playbackState.positionMs)} / ${formatDurationMs(playbackState.durationMs)}", style = MaterialTheme.typography.labelMedium, color = Color.White)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            IconButton(onClick = onCycleResizeMode, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_aspect_button")) { Icon(Icons.Rounded.AspectRatio, contentDescription = "Aspect", tint = Color.White) }
-                            IconButton(onClick = onOpenSpeedSheet, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_speed_button")) { Icon(Icons.Rounded.Speed, contentDescription = "Speed", tint = Color.White) }
-                            IconButton(onClick = onOpenSleepTimerSheet, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_sleep_button")) { Icon(Icons.Rounded.Nightlight, contentDescription = "Sleep timer", tint = if (sleepTimerState !is SleepTimerState.Off) MaterialTheme.colorScheme.secondary else Color.White) }
-                            val hasSubtitles = playbackState.subtitleTracks.isNotEmpty()
-                            IconButton(onClick = { showSubtitleSheet = true }, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_subtitle_button")) { Icon(if (hasSubtitles && selectedTrack != null) Icons.Rounded.ClosedCaption else Icons.Rounded.ClosedCaptionDisabled, contentDescription = "Subtitles", tint = Color.White) }
+
+                // Floating macOS smoked glass bottom control deck
+                MacGlassContainer(
+                    shape = RoundedCornerShape(22.dp),
+                    tier = GlassTier.HUD_DARK,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .align(Alignment.BottomCenter),
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+                        val duration = playbackState.durationMs.coerceAtLeast(1L)
+                        var isDragging by remember { mutableStateOf(false) }
+                        var dragFraction by remember { mutableFloatStateOf(0f) }
+                        val sliderVal = if (isDragging) dragFraction else (playbackState.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                        Slider(value = sliderVal, onValueChange = { isDragging = true; dragFraction = it }, onValueChangeFinished = { onSeekTo((dragFraction * duration).toLong()); isDragging = false }, colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = Color.White.copy(alpha = 0.28f)), modifier = Modifier.fillMaxWidth())
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "${formatDurationMs(if (isDragging) (dragFraction * duration).toLong() else playbackState.positionMs)} / ${formatDurationMs(playbackState.durationMs)}", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                IconButton(onClick = onCycleResizeMode, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_aspect_button")) { Icon(Icons.Rounded.AspectRatio, contentDescription = "Aspect", tint = Color.White) }
+                                IconButton(onClick = onOpenSpeedSheet, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_speed_button")) { Icon(Icons.Rounded.Speed, contentDescription = "Speed", tint = Color.White) }
+                                IconButton(onClick = onOpenSleepTimerSheet, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_sleep_button")) { Icon(Icons.Rounded.Nightlight, contentDescription = "Sleep timer", tint = if (sleepTimerState !is SleepTimerState.Off) MaterialTheme.colorScheme.secondary else Color.White) }
+                                val hasSubtitles = playbackState.subtitleTracks.isNotEmpty()
+                                IconButton(onClick = { showSubtitleSheet = true }, modifier = Modifier.minimumInteractiveComponentSize().testTag("video_subtitle_button")) { Icon(if (hasSubtitles && selectedTrack != null) Icons.Rounded.ClosedCaption else Icons.Rounded.ClosedCaptionDisabled, contentDescription = "Subtitles", tint = Color.White) }
+                            }
                         }
                     }
                 }
@@ -167,7 +218,7 @@ fun VideoPlayerScreen(
         }
 
         if (showSubtitleSheet) {
-            ModalBottomSheet(onDismissRequest = { showSubtitleSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            ModalBottomSheet(onDismissRequest = { showSubtitleSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.90f)) {
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(text = stringResource(R.string.subtitles_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(bottom = 12.dp))
                     FilterChip(selected = selectedTrack == null, onClick = { selectedTrack = null; onSelectSubtitleTrack(null) }, label = { Text(stringResource(R.string.subtitles_off)) }, leadingIcon = if (selectedTrack == null) { { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))

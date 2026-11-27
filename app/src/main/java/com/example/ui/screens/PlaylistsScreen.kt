@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,8 +59,8 @@ import com.example.media.LocalArtworkLoader
 import com.example.ui.components.MacWindowTitleBar
 import com.example.ui.components.TrackArtworkThumb
 import com.example.ui.components.formatDurationMs
-import com.example.ui.components.macGlassBorderColor
-import com.example.ui.theme.LocalCadenceAppearance
+import com.example.ui.theme.GlassTier
+import com.example.ui.theme.macGlassSurface
 
 @Composable
 fun PlaylistsScreen(
@@ -83,10 +84,6 @@ fun PlaylistsScreen(
         BackHandler { onSelectPlaylist(null) }
     }
 
-    val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
-    val cardColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.85f else 0.96f)
-    val glassBorder = macGlassBorderColor()
-
     Box(modifier = modifier.fillMaxSize()) {
         if (selectedPlaylistId == null) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -103,10 +100,13 @@ fun PlaylistsScreen(
                             .padding(28.dp),
                         contentAlignment = Alignment.Center,
                     ) {
+                        val emptyShape = RoundedCornerShape(22.dp)
                         Surface(
-                            shape = RoundedCornerShape(22.dp),
-                            color = cardColor,
-                            modifier = Modifier.fillMaxWidth(),
+                            shape = emptyShape,
+                            color = Color.Transparent,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .macGlassSurface(shape = emptyShape, tier = GlassTier.PANEL),
                         ) {
                             Column(
                                 modifier = Modifier.padding(24.dp),
@@ -137,12 +137,13 @@ fun PlaylistsScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(playlists, key = { it.playlist.playlistId }) { item ->
+                            val cardShape = RoundedCornerShape(16.dp)
                             Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = cardColor,
+                                shape = cardShape,
+                                color = Color.Transparent,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, glassBorder, RoundedCornerShape(16.dp))
+                                    .macGlassSurface(shape = cardShape, tier = GlassTier.CARD)
                                     .clickable { onSelectPlaylist(item.playlist.playlistId) }
                                     .testTag("playlist_card_${item.playlist.playlistId}"),
                             ) {
@@ -263,11 +264,13 @@ fun PlaylistsScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         itemsIndexed(selectedPlaylistTracks, key = { _, t -> t.mediaStoreId }) { index, track ->
+                            val rowShape = RoundedCornerShape(14.dp)
                             Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = cardColor,
+                                shape = rowShape,
+                                color = Color.Transparent,
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .macGlassSurface(shape = rowShape, tier = GlassTier.CARD)
                                     .clickable { onPlayTracks(track, selectedPlaylistTracks) },
                             ) {
                                 Row(

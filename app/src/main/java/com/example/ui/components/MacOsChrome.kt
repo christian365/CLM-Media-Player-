@@ -50,120 +50,49 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.theme.GlassTier
 import com.example.ui.theme.LocalCadenceAppearance
-
-val MacCloseRed = Color(0xFFFF5F57)
-val MacMinimizeAmber = Color(0xFFFEBC2E)
-val MacZoomGreen = Color(0xFF28C840)
+import com.example.ui.theme.macGlassSurface
 
 @Composable
 fun macGlassBorderColor(): Color {
     val darkTheme = LocalCadenceAppearance.current.darkTheme
     return if (darkTheme) {
-        Color.White.copy(alpha = 0.14f)
+        Color.White.copy(alpha = 0.16f)
     } else {
-        Color.White.copy(alpha = 0.72f)
+        Color.White.copy(alpha = 0.78f)
     }
 }
 
 @Composable
 fun macGlassSurfaceColor(alphaOverride: Float? = null): Color {
     val appearance = LocalCadenceAppearance.current
-    val alpha = alphaOverride ?: if (appearance.hasDecorativeBackground) 0.78f else 0.94f
+    val alpha = alphaOverride ?: if (appearance.hasDecorativeBackground) 0.56f else 0.74f
     return MaterialTheme.colorScheme.surfaceContainer.copy(alpha = alpha)
-}
-
-@Composable
-fun MacTrafficLights(
-    modifier: Modifier = Modifier,
-    onCloseClick: (() -> Unit)? = null,
-    onMinimizeClick: (() -> Unit)? = null,
-    onZoomClick: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        MacTrafficDot(
-            color = MacCloseRed,
-            description = "Close or clear",
-            onClick = onCloseClick,
-        )
-        MacTrafficDot(
-            color = MacMinimizeAmber,
-            description = "Minimize or collapse",
-            onClick = onMinimizeClick,
-        )
-        MacTrafficDot(
-            color = MacZoomGreen,
-            description = "Customize window",
-            onClick = onZoomClick,
-        )
-    }
-}
-
-@Composable
-private fun MacTrafficDot(
-    color: Color,
-    description: String,
-    onClick: (() -> Unit)?,
-) {
-    val dotModifier = Modifier
-        .size(12.dp)
-        .clip(CircleShape)
-        .background(color)
-        .border(0.75.dp, Color.Black.copy(alpha = 0.18f), CircleShape)
-
-    if (onClick != null) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .clickable(role = Role.Button, onClick = onClick)
-                .semantics { contentDescription = description },
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(modifier = dotModifier)
-        }
-    } else {
-        Box(modifier = dotModifier)
-    }
 }
 
 @Composable
 fun MacWindowTitleBar(
     title: String,
     subtitle: String? = null,
-    onCloseClick: (() -> Unit)? = null,
-    onMinimizeClick: (() -> Unit)? = null,
-    onZoomClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     trailingActions: @Composable RowScope.() -> Unit = {},
 ) {
-    val border = macGlassBorderColor()
+    val shape = RoundedCornerShape(16.dp)
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = macGlassSurfaceColor(alphaOverride = 0.80f),
-        tonalElevation = 2.dp,
+        shape = shape,
+        color = Color.Transparent,
+        tonalElevation = 0.dp,
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, border, RoundedCornerShape(16.dp)),
+            .macGlassSurface(shape = shape, tier = GlassTier.PANEL),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            MacTrafficLights(
-                onCloseClick = onCloseClick,
-                onMinimizeClick = onMinimizeClick,
-                onZoomClick = onZoomClick,
-            )
-
-            Spacer(Modifier.width(10.dp))
-
             Column(
                 modifier = Modifier.weight(1f),
             ) {
@@ -202,13 +131,12 @@ fun <T> MacSegmentedStrip(
     modifier: Modifier = Modifier,
     testTagPrefix: String = "mac_seg",
 ) {
-    val border = macGlassBorderColor()
     val scrollState = rememberScrollState()
+    val stripShape = RoundedCornerShape(14.dp)
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.74f),
-        modifier = modifier
-            .border(1.dp, border, RoundedCornerShape(14.dp)),
+        shape = stripShape,
+        color = Color.Transparent,
+        modifier = modifier.macGlassSurface(shape = stripShape, tier = GlassTier.CARD),
     ) {
         Row(
             modifier = Modifier
@@ -417,23 +345,6 @@ fun MacFinderSidebar(
                 .padding(horizontal = 14.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                MacTrafficLights()
-                Text(
-                    text = "macOS",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            Spacer(Modifier.height(6.dp))
-
             Text(
                 text = "CLM MEDIA PLAYER",
                 style = MaterialTheme.typography.labelSmall.copy(
@@ -441,7 +352,7 @@ fun MacFinderSidebar(
                     fontWeight = FontWeight.Bold,
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             )
 
             MacSidebarRow(

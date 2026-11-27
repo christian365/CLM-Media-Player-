@@ -84,8 +84,3 @@ fun macColorScheme(palette: ThemePalette, dark: Boolean): ColorScheme {
         scrim = Color.Black,
     )
 }
-
-// macOS traffic lights
-val MacCloseRed = Color(0xFFFF5F57)
-val MacMinimizeYellow = Color(0xFFFEBC2E)
-val MacZoomGreen = Color(0xFF28C840)

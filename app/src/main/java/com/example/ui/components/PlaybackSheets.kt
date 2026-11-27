@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,6 +56,8 @@ import com.example.data.local.PlaylistWithCount
 import com.example.media.AudioEffectsState
 import com.example.media.LocalArtworkLoader
 import com.example.media.SleepTimerState
+import com.example.ui.theme.GlassTier
+import com.example.ui.theme.macGlassSurface
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,7 +74,7 @@ fun QueueBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
     ) {
         Column(
             modifier = Modifier
@@ -120,15 +123,13 @@ fun QueueBottomSheet(
                 ) {
                     itemsIndexed(queue, key = { idx, t -> "${t.mediaStoreId}_$idx" }) { index, track ->
                         val isCurrent = index == currentIndex
+                        val cardShape = RoundedCornerShape(12.dp)
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isCurrent) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainer
-                            },
+                            shape = cardShape,
+                            color = Color.Transparent,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .macGlassSurface(shape = cardShape, tier = GlassTier.CARD, tintedPrimary = isCurrent)
                                 .clickable { onSelectTrack(index) },
                         ) {
                             Row(
@@ -198,7 +199,7 @@ fun EqualizerBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
     ) {
         Column(
             modifier = Modifier
@@ -325,7 +326,7 @@ fun SleepTimerBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
     ) {
         Column(
             modifier = Modifier
@@ -407,7 +408,7 @@ fun SpeedPitchBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
     ) {
         Column(
             modifier = Modifier
@@ -476,7 +477,7 @@ fun AddToPlaylistBottomSheet(
     var newName by remember { mutableStateOf("") }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
     ) {
         Column(
             modifier = Modifier
@@ -527,11 +528,13 @@ fun AddToPlaylistBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     itemsIndexed(playlists, key = { _, p -> p.playlist.playlistId }) { _, item ->
+                        val rowShape = RoundedCornerShape(12.dp)
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            shape = rowShape,
+                            color = Color.Transparent,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .macGlassSurface(shape = rowShape, tier = GlassTier.CARD)
                                 .clickable {
                                     onSelectPlaylist(item.playlist.playlistId)
                                     onDismiss()

@@ -39,15 +39,22 @@ fun CadenceTheme(
     backgroundPreset: BackgroundPreset = BackgroundPreset.THEME_SOLID,
     content: @Composable () -> Unit,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val colorScheme = if (dynamicColor && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        if (darkTheme) androidx.compose.material3.dynamicDarkColorScheme(context)
+        else androidx.compose.material3.dynamicLightColorScheme(context)
+    } else {
+        macColorScheme(palette, darkTheme)
+    }
     val appearance = CadenceAppearanceConfig(
         darkTheme = darkTheme,
         palette = palette,
-        backgroundPreset = BackgroundPreset.THEME_SOLID,
-        hasDecorativeBackground = false,
+        backgroundPreset = backgroundPreset,
+        hasDecorativeBackground = backgroundPreset != BackgroundPreset.THEME_SOLID,
     )
     CompositionLocalProvider(LocalCadenceAppearance provides appearance) {
         MaterialTheme(
-            colorScheme = macColorScheme(palette, darkTheme),
+            colorScheme = colorScheme,
             typography = CadenceTypography,
             shapes = CadenceShapes,
             content = content,

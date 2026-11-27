@@ -1,11 +1,8 @@
 package com.example.playback
 
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -13,8 +10,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.Renderer
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
@@ -28,8 +23,6 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import org.jellyfin.media3.exoplayer.ffmpeg.FfmpegAudioRenderer
-import org.jellyfin.media3.exoplayer.ffmpeg.FfmpegVideoRenderer
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
@@ -50,46 +43,7 @@ class PlaybackService : MediaSessionService() {
             DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
         }
 
-        val renderersFactory = object : DefaultRenderersFactory(this) {
-            override fun buildVideoRenderers(
-                context: Context,
-                extensionRendererMode: Int,
-                mediaCodecSelector: MediaCodecSelector,
-                enableDecoderFallback: Boolean,
-                allowedVideoJoiningTimeMs: Long,
-                out: ArrayList<Renderer>,
-            ) {
-                super.buildVideoRenderers(
-                    context, extensionRendererMode, mediaCodecSelector,
-                    enableDecoderFallback, allowedVideoJoiningTimeMs, out
-                )
-                try {
-                    out.add(FfmpegVideoRenderer(allowedVideoJoiningTimeMs))
-                } catch (e: Exception) {
-                    // FFmpeg renderer not available
-                }
-            }
-
-            override fun buildAudioRenderers(
-                context: Context,
-                extensionRendererMode: Int,
-                mediaCodecSelector: MediaCodecSelector,
-                enableDecoderFallback: Boolean,
-                eventHandler: Handler,
-                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
-                out: ArrayList<Renderer>,
-            ) {
-                super.buildAudioRenderers(
-                    context, extensionRendererMode, mediaCodecSelector,
-                    enableDecoderFallback, eventHandler, eventListener, out
-                )
-                try {
-                    out.add(FfmpegAudioRenderer())
-                } catch (e: Exception) {
-                    // FFmpeg renderer not available
-                }
-            }
-        }.apply {
+        val renderersFactory = DefaultRenderersFactory(this).apply {
             setExtensionRendererMode(extensionMode)
             setEnableDecoderFallback(true)
         }

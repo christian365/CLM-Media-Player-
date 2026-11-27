@@ -64,6 +64,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,7 +87,9 @@ import com.example.ui.components.TrackArtworkThumb
 import com.example.ui.components.formatDurationMs
 import com.example.ui.components.formatExtensionTag
 import com.example.ui.components.formatFileSize
+import com.example.ui.theme.GlassTier
 import com.example.ui.theme.LocalCadenceAppearance
+import com.example.ui.theme.macGlassSurface
 
 @Composable
 fun LibraryScreen(
@@ -135,17 +138,6 @@ fun LibraryScreen(
             MacWindowTitleBar(
                 title = stringResource(R.string.app_name),
                 subtitle = "${songs.size} audio • ${videos.size} video • offline",
-                onCloseClick = {
-                    if (searchQuery.isNotEmpty()) {
-                        onSearchQueryChange("")
-                    } else if (drilldown !is LibraryDrilldown.None) {
-                        onCloseDrilldown()
-                    }
-                },
-                onMinimizeClick = {
-                    if (drilldown !is LibraryDrilldown.None) onCloseDrilldown()
-                },
-                onZoomClick = onOpenThemeStudio,
             ) {
                 IconButton(
                     onClick = onOpenThemeStudio,
@@ -182,7 +174,7 @@ fun LibraryScreen(
             }
 
             val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
-            val searchContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.88f else 1f)
+            val searchContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.56f else 0.72f)
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
@@ -429,14 +421,13 @@ private fun SmartHighlightsSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(itemsToShow.take(12), key = { "smart_${activeSmartTab}_${it.mediaStoreId}" }) { item ->
-                    val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
+                    val cardShape = RoundedCornerShape(16.dp)
                     Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.88f else 1f),
-                        ),
-                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                        shape = cardShape,
                         modifier = Modifier
                             .width(140.dp)
+                            .macGlassSurface(shape = cardShape, tier = GlassTier.CARD)
                             .clickable {
                                 if (item.mediaType == MediaType.VIDEO) onPlayVideo(item) else onPlayAudio(item)
                             },
@@ -494,14 +485,13 @@ private fun VideosTabContent(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(videos, key = { it.mediaStoreId }) { video ->
-            val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
+            val cardShape = RoundedCornerShape(16.dp)
             Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.88f else 1f),
-                ),
-                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = cardShape,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .macGlassSurface(shape = cardShape, tier = GlassTier.CARD)
                     .clickable { onPlayVideo(video) }
                     .testTag("video_card_${video.mediaStoreId}"),
             ) {
@@ -575,14 +565,13 @@ private fun AlbumsTabContent(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(albums, key = { "${it.albumId}_${it.album}" }) { album ->
-            val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
+            val cardShape = RoundedCornerShape(16.dp)
             Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.88f else 1f),
-                ),
-                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = cardShape,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .macGlassSurface(shape = cardShape, tier = GlassTier.CARD)
                     .clickable { onOpenAlbum(album) },
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
@@ -624,11 +613,13 @@ private fun ArtistsTabContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(artists, key = { it.artist }) { artist ->
+            val rowShape = RoundedCornerShape(14.dp)
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = rowShape,
+                color = Color.Transparent,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .macGlassSurface(shape = rowShape, tier = GlassTier.CARD)
                     .clickable { onOpenArtist(artist) },
             ) {
                 Row(
@@ -674,11 +665,13 @@ private fun GenresTabContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(genres, key = { it.genre }) { genre ->
+            val rowShape = RoundedCornerShape(14.dp)
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = rowShape,
+                color = Color.Transparent,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .macGlassSurface(shape = rowShape, tier = GlassTier.CARD)
                     .clickable { onOpenGenre(genre) },
             ) {
                 Row(
@@ -724,11 +717,13 @@ private fun FoldersTabContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(folders, key = { it.folderPath }) { folder ->
+            val rowShape = RoundedCornerShape(14.dp)
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = rowShape,
+                color = Color.Transparent,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .macGlassSurface(shape = rowShape, tier = GlassTier.CARD)
                     .clickable { onOpenFolder(folder) },
             ) {
                 Row(
@@ -980,10 +975,13 @@ private fun EmptyLibraryCard() {
             .padding(28.dp),
         contentAlignment = Alignment.Center,
     ) {
+        val emptyShape = RoundedCornerShape(22.dp)
         Surface(
-            shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            modifier = Modifier.fillMaxWidth(),
+            shape = emptyShape,
+            color = Color.Transparent,
+            modifier = Modifier
+                .fillMaxWidth()
+                .macGlassSurface(shape = emptyShape, tier = GlassTier.PANEL),
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),

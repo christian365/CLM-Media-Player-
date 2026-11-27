@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,8 +49,8 @@ import com.example.data.local.ThemePalette
 import com.example.data.local.UserPreferences
 import com.example.ui.components.MacWindowTitleBar
 import com.example.ui.components.ThemeCustomizerContent
-import com.example.ui.components.macGlassBorderColor
-import com.example.ui.theme.LocalCadenceAppearance
+import com.example.ui.theme.GlassTier
+import com.example.ui.theme.macGlassSurface
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -209,10 +210,13 @@ fun SettingsScreen(
 
         if (folderFilters.isEmpty()) {
             item {
+                val emptyShape = RoundedCornerShape(14.dp)
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
+                    shape = emptyShape,
+                    color = Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .macGlassSurface(shape = emptyShape, tier = GlassTier.CARD),
                 ) {
                     Text(
                         "No indexed folders yet. Grant media access and rescan your library.",
@@ -224,10 +228,13 @@ fun SettingsScreen(
             }
         } else {
             items(folderFilters, key = { it.folderPath }) { folder ->
+                val folderShape = RoundedCornerShape(14.dp)
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
+                    shape = folderShape,
+                    color = Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .macGlassSurface(shape = folderShape, tier = GlassTier.CARD),
                 ) {
                     Row(
                         modifier = Modifier
@@ -286,14 +293,13 @@ private fun SettingsCard(
     title: String,
     content: @Composable () -> Unit,
 ) {
-    val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
-    val glassBorder = macGlassBorderColor()
+    val cardShape = RoundedCornerShape(18.dp)
     Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.84f else 0.96f),
+        shape = cardShape,
+        color = Color.Transparent,
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, glassBorder, RoundedCornerShape(18.dp)),
+            .macGlassSurface(shape = cardShape, tier = GlassTier.PANEL),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
