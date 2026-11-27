@@ -1,3 +1,5 @@
+@file:OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
+
 package com.example.ui.screens
 
 import android.app.Activity
@@ -52,7 +54,6 @@ import com.example.ui.components.VideoGestureOverlay
 import com.example.ui.components.formatDurationMs
 import kotlinx.coroutines.delay
 
-@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
     player: Player?,
@@ -72,6 +73,11 @@ fun VideoPlayerScreen(
     onOpenSleepTimerSheet: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (player == null) {
+        onNavigateBack()
+        return
+    }
+
     val context = LocalContext.current
     val activity = context as? Activity
     var controlsVisible by remember { mutableStateOf(true) }
@@ -79,6 +85,7 @@ fun VideoPlayerScreen(
     var isLandscapeForced by remember { mutableStateOf(false) }
     var selectedTrack by remember { mutableStateOf<SubtitleTrackOption?>(null) }
     val subtitlePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? -> if (uri != null) onPickSidecarSubtitleUri(uri) }
+
     DisposableEffect(activity) {
         val window = activity?.window
         if (window != null) {
@@ -91,12 +98,30 @@ fun VideoPlayerScreen(
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
+
     LaunchedEffect(controlsVisible, playbackState.isPlaying, showSubtitleSheet) {
         if (controlsVisible && playbackState.isPlaying && !showSubtitleSheet) { delay(4000L); controlsVisible = false }
     }
+
     BackHandler { onNavigateBack() }
-    VideoGestureOverlay(player = player as ExoPlayer, modifier = modifier.fillMaxSize().background(Color.Black).testTag("video_player_surface")) {
-        AndroidView(factory = { ctx -> PlayerView(ctx).apply { useController = false; layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT); keepScreenOn = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) } }, update = { view -> if (view.player !== player) view.player = player; view.resizeMode = when (playbackState.videoResizeMode) { VideoResizeMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT; VideoResizeMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL; VideoResizeMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM; VideoResizeMode.RATIO_16_9 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH; VideoResizeMode.RATIO_4_3 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT }; SubtitleOverlayHelper.applyStyle(view.subtitleView, preferences.subtitleTextSizeSp, preferences.subtitleStylePreset) }, modifier = Modifier.fillMaxSize())
+
+    VideoGestureOverlay(player = player, modifier = modifier.fillMaxSize().background(Color.Black).testTag("video_player_surface")) {
+        AndroidView(factory = { ctx -> PlayerView(ctx).apply { useController = false; layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT); keepScreenOn = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) } }, update = { view ->
+            try {
+                if (view.player !== player) view.player = player
+                view.resizeMode = when (playbackState.videoResizeMode) {
+                    VideoResizeMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    VideoResizeMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    VideoResizeMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    VideoResizeMode.RATIO_16_9 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                    VideoResizeMode.RATIO_4_3 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+                }
+                SubtitleOverlayHelper.applyStyle(view.subtitleView, preferences.subtitleTextSizeSp, preferences.subtitleStylePreset)
+            } catch (e: Exception) {
+                // Silently ignore UI update errors
+            }
+        }, modifier = Modifier.fillMaxSize())
+
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.82f))))) {
                 Row(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp).align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -129,6 +154,7 @@ fun VideoPlayerScreen(
                 }
             }
         }
+
         if (showSubtitleSheet) {
             ModalBottomSheet(onDismissRequest = { showSubtitleSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
