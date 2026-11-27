@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,8 +55,10 @@ import androidx.compose.ui.unit.dp
 import com.example.data.local.MediaTrackEntity
 import com.example.data.local.PlaylistWithCount
 import com.example.media.LocalArtworkLoader
+import com.example.ui.components.MacWindowTitleBar
 import com.example.ui.components.TrackArtworkThumb
 import com.example.ui.components.formatDurationMs
+import com.example.ui.components.macGlassBorderColor
 import com.example.ui.theme.LocalCadenceAppearance
 
 @Composable
@@ -81,19 +84,17 @@ fun PlaylistsScreen(
     }
 
     val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
-    val cardColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.88f else 1f)
+    val cardColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.85f else 0.96f)
+    val glassBorder = macGlassBorderColor()
 
     Box(modifier = modifier.fillMaxSize()) {
         if (selectedPlaylistId == null) {
             Column(modifier = Modifier.fillMaxSize()) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text("Playlists", style = MaterialTheme.typography.headlineMedium)
-                    Text(
-                        "${playlists.size} custom local playlist${if (playlists.size == 1) "" else "s"}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                MacWindowTitleBar(
+                    title = "Playlists",
+                    subtitle = "${playlists.size} custom local playlist${if (playlists.size == 1) "" else "s"}",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                )
 
                 if (playlists.isEmpty()) {
                     Box(
@@ -132,7 +133,7 @@ fun PlaylistsScreen(
                     }
                 } else {
                     LazyColumn(
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 148.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(playlists, key = { it.playlist.playlistId }) { item ->
@@ -141,6 +142,7 @@ fun PlaylistsScreen(
                                 color = cardColor,
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .border(1.dp, glassBorder, RoundedCornerShape(16.dp))
                                     .clickable { onSelectPlaylist(item.playlist.playlistId) }
                                     .testTag("playlist_card_${item.playlist.playlistId}"),
                             ) {
@@ -189,7 +191,7 @@ fun PlaylistsScreen(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 92.dp)
+                    .padding(end = 20.dp, bottom = 112.dp)
                     .testTag("create_playlist_fab"),
             ) {
                 Icon(Icons.Rounded.Add, contentDescription = "New playlist")

@@ -80,6 +80,8 @@ import com.example.ui.LibraryCategory
 import com.example.ui.LibraryDrilldown
 import com.example.ui.components.AlbumArtworkThumb
 import com.example.ui.components.FormatBadgePill
+import com.example.ui.components.MacSegmentedStrip
+import com.example.ui.components.MacWindowTitleBar
 import com.example.ui.components.TrackArtworkThumb
 import com.example.ui.components.formatDurationMs
 import com.example.ui.components.formatExtensionTag
@@ -123,62 +125,58 @@ fun LibraryScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        // Header + Search Bar
+        // macOS Unified Window Title Bar + Search Bar
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            MacWindowTitleBar(
+                title = stringResource(R.string.app_name),
+                subtitle = "${songs.size} audio • ${videos.size} video • offline",
+                onCloseClick = {
+                    if (searchQuery.isNotEmpty()) {
+                        onSearchQueryChange("")
+                    } else if (drilldown !is LibraryDrilldown.None) {
+                        onCloseDrilldown()
+                    }
+                },
+                onMinimizeClick = {
+                    if (drilldown !is LibraryDrilldown.None) onCloseDrilldown()
+                },
+                onZoomClick = onOpenThemeStudio,
             ) {
-                Column {
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                    Text(
-                        text = "${songs.size} audio • ${videos.size} video • offline",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                IconButton(
+                    onClick = onOpenThemeStudio,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("open_theme_studio_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Palette,
+                        contentDescription = stringResource(R.string.open_theme_studio),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = onOpenThemeStudio,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("open_theme_studio_button"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Palette,
-                            contentDescription = stringResource(R.string.open_theme_studio),
-                            tint = MaterialTheme.colorScheme.primary,
+                IconButton(
+                    onClick = onRescan,
+                    enabled = !isScanning,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("rescan_library_button"),
+                ) {
+                    if (isScanning) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
                         )
-                    }
-
-                    IconButton(
-                        onClick = onRescan,
-                        enabled = !isScanning,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("rescan_library_button"),
-                    ) {
-                        if (isScanning) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Rounded.Refresh,
-                                contentDescription = stringResource(R.string.rescan_library),
-                            )
-                        }
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = stringResource(R.string.rescan_library),
+                        )
                     }
                 }
             }
@@ -242,26 +240,18 @@ fun LibraryScreen(
                 onRequestAddToPlaylist = onRequestAddToPlaylist,
             )
         } else {
-            // Category Selector Chips
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 8.dp),
-            ) {
-                items(LibraryCategory.entries) { cat ->
-                    val selected = cat == selectedCategory
-                    FilterChip(
-                        selected = selected,
-                        onClick = { onSelectCategory(cat) },
-                        label = { Text(cat.label) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        ),
-                        modifier = Modifier.testTag("category_chip_${cat.name.lowercase()}"),
-                    )
-                }
-            }
+            // macOS Category Segmented Strip
+            MacSegmentedStrip(
+                items = LibraryCategory.entries,
+                selectedItem = selectedCategory,
+                labelProvider = { it.label },
+                onSelect = onSelectCategory,
+                testTagPrefix = "category_chip",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 8.dp),
+            )
 
             when (selectedCategory) {
                 LibraryCategory.SONGS -> SongsTabContent(
@@ -404,40 +394,25 @@ private fun SmartHighlightsSection(
         else -> lastPlayed
     }
 
+    val smartLabels = listOf(
+        stringResource(R.string.section_recently_added),
+        stringResource(R.string.section_most_played),
+        stringResource(R.string.section_last_played),
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
     ) {
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                FilterChip(
-                    selected = activeSmartTab == 0,
-                    onClick = { activeSmartTab = 0 },
-                    leadingIcon = { Icon(Icons.Rounded.NewReleases, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    label = { Text(stringResource(R.string.section_recently_added)) },
-                )
-            }
-            item {
-                FilterChip(
-                    selected = activeSmartTab == 1,
-                    onClick = { activeSmartTab = 1 },
-                    leadingIcon = { Icon(Icons.Rounded.BarChart, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    label = { Text(stringResource(R.string.section_most_played)) },
-                )
-            }
-            item {
-                FilterChip(
-                    selected = activeSmartTab == 2,
-                    onClick = { activeSmartTab = 2 },
-                    leadingIcon = { Icon(Icons.Rounded.History, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    label = { Text(stringResource(R.string.section_last_played)) },
-                )
-            }
-        }
+        MacSegmentedStrip(
+            items = listOf(0, 1, 2),
+            selectedItem = activeSmartTab,
+            labelProvider = { smartLabels[it] },
+            onSelect = { activeSmartTab = it },
+            testTagPrefix = "smart_mix",
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
 
         Spacer(Modifier.height(8.dp))
 

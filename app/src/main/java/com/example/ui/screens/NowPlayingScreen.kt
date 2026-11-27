@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,8 +76,10 @@ import com.example.media.LocalArtworkLoader
 import com.example.media.SleepTimerState
 import com.example.playback.PlaybackUiState
 import com.example.ui.components.FormatBadgePill
+import com.example.ui.components.MacTrafficLights
 import com.example.ui.components.TrackArtworkThumb
 import com.example.ui.components.formatDurationMs
+import com.example.ui.components.macGlassBorderColor
 import com.example.ui.theme.LocalCadenceAppearance
 
 @Composable
@@ -151,19 +154,31 @@ fun NowPlayingScreen(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Top Bar
+            val glassBorder = macGlassBorderColor()
+
+            // Top Bar (macOS sheet header)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(
-                    onClick = onNavigateBack,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("now_playing_back"),
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Collapse player")
+                    MacTrafficLights(
+                        onCloseClick = onNavigateBack,
+                        onMinimizeClick = onNavigateBack,
+                        onZoomClick = { showLyrics = !showLyrics },
+                    )
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("now_playing_back"),
+                    ) {
+                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Collapse player")
+                    }
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -399,8 +414,10 @@ fun NowPlayingScreen(
             // Secondary Audio Tools Row
             Surface(
                 shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.84f else 0.96f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, macGlassBorderColor(), RoundedCornerShape(18.dp)),
             ) {
                 Row(
                     modifier = Modifier
@@ -455,9 +472,10 @@ private fun LyricsPanel(
 ) {
     Surface(
         shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.78f),
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.80f),
         modifier = Modifier
             .fillMaxSize()
+            .border(1.dp, macGlassBorderColor(), RoundedCornerShape(22.dp))
             .testTag("lyrics_panel"),
     ) {
         when {

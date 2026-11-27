@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.net.Uri
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -45,7 +46,9 @@ import com.example.data.local.SubtitleStylePreset
 import com.example.data.local.ThemeMode
 import com.example.data.local.ThemePalette
 import com.example.data.local.UserPreferences
+import com.example.ui.components.MacWindowTitleBar
 import com.example.ui.components.ThemeCustomizerContent
+import com.example.ui.components.macGlassBorderColor
 import com.example.ui.theme.LocalCadenceAppearance
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -68,18 +71,14 @@ fun SettingsScreen(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 148.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Column {
-                Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    stringResource(R.string.tagline_offline),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
+            MacWindowTitleBar(
+                title = stringResource(R.string.settings_title),
+                subtitle = stringResource(R.string.tagline_offline),
+            )
         }
 
         // Theme & Background Studio
@@ -288,10 +287,13 @@ private fun SettingsCard(
     content: @Composable () -> Unit,
 ) {
     val hasBg = LocalCadenceAppearance.current.hasDecorativeBackground
+    val glassBorder = macGlassBorderColor()
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.88f else 1f),
-        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = if (hasBg) 0.84f else 0.96f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, glassBorder, RoundedCornerShape(18.dp)),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.ui.components.MacWindowTitleBar
+import com.example.ui.components.macGlassBorderColor
 
 @Composable
 fun PermissionGateScreen(
@@ -69,14 +72,20 @@ fun PermissionGateScreen(
                 .fillMaxWidth()
                 .widthIn(max = 460.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            MacWindowTitleBar(
+                title = stringResource(R.string.app_name),
+                subtitle = "Offline macOS Workspace",
+            )
+
             Image(
                 painter = painterResource(id = R.drawable.img_audio_placeholder),
-                contentDescription = "Cadence studio artwork",
+                contentDescription = "CLM Media Player artwork",
                 modifier = Modifier
-                    .size(132.dp)
-                    .clip(RoundedCornerShape(28.dp)),
+                    .size(124.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .border(1.dp, macGlassBorderColor(), RoundedCornerShape(28.dp)),
                 contentScale = ContentScale.Crop,
             )
 
