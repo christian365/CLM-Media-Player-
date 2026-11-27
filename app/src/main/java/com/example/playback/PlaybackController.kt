@@ -367,7 +367,7 @@ class PlaybackController(
         forcedExtensionFallback = false
         val controller = mediaController ?: return
         val args = Bundle().apply {
-            putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, prefer)
+            putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, false)
             putBoolean(PlaybackService.ARG_PREFER_EXTENSIONS, prefer)
             putBoolean(PlaybackService.ARG_RESET_EXCLUSIONS, true)
         }
@@ -384,7 +384,7 @@ class PlaybackController(
             return
         }
         val controller = mediaController
-        if (controller == null) {
+        if (controller == null || !controller.isConnected) {
             onReady()
             return
         }
@@ -392,7 +392,7 @@ class PlaybackController(
         val wasForcedExt = forcedExtensionFallback
         forcedExtensionFallback = false
         val args = Bundle().apply {
-            putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, preferExt)
+            putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, false)
             putBoolean(PlaybackService.ARG_RESET_EXCLUSIONS, true)
             if (wasForcedExt) {
                 putBoolean(PlaybackService.ARG_PREFER_EXTENSIONS, preferExt)
@@ -402,7 +402,9 @@ class PlaybackController(
             SessionCommand(PlaybackService.CMD_SET_DECODER_MODE, Bundle.EMPTY),
             args,
         )
-        future.addListener({ onReady() }, androidx.core.content.ContextCompat.getMainExecutor(context))
+        future.addListener({
+            runCatching { onReady() }
+        }, androidx.core.content.ContextCompat.getMainExecutor(context))
     }
 
     fun cycleVideoResizeMode() {
@@ -602,12 +604,17 @@ class PlaybackController(
 
             if (
                 controller != null &&
+                controller.isConnected &&
                 track != null &&
                 PlaybackDiagnostics.isRecoverableCodecErrorCode(error.errorCode) &&
                 softwareFallbackAttemptedForTrackId != track.mediaStoreId
             ) {
                 softwareFallbackAttemptedForTrackId = track.mediaStoreId
-                forcedExtensionFallback = true
+                val isAudioError = controller.sessionExtras.getBoolean(PlaybackService.EXTRA_LAST_ERROR_IS_AUDIO, false) ||
+                    PlaybackDiagnostics.isAudioErrorCode(error.errorCode)
+                val enableFfmpegAudio = isAudioError || (userPreferExtensionDecoders == true)
+                forcedExtensionFallback = isAudioError
+
                 val resumePositionMs = controller.currentPosition.coerceAtLeast(0L)
                 val targetIndex = controller.currentMediaItemIndex
                     .takeIf { it in currentState.queue.indices }
@@ -618,24 +625,37 @@ class PlaybackController(
 
                 val args = Bundle().apply {
                     putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, true)
-                    putBoolean(PlaybackService.ARG_PREFER_EXTENSIONS, true)
                     putBoolean(PlaybackService.ARG_EXCLUDE_LAST_FAILED_CODEC, true)
+                    if (enableFfmpegAudio) {
+                        putBoolean(PlaybackService.ARG_PREFER_EXTENSIONS, true)
+                    }
                 }
                 val future = controller.sendCustomCommand(
                     SessionCommand(PlaybackService.CMD_SET_DECODER_MODE, Bundle.EMPTY),
                     args,
                 )
                 future.addListener({
-                    if (_uiState.value.currentTrack?.mediaStoreId == track.mediaStoreId) {
-                        val (_, startIndex, mediaItems) = prepareQueueItems(
-                            track = track,
-                            queue = _uiState.value.queue,
-                            sidecarSubtitles = subsSnapshot,
+                    runCatching {
+                        if (controller.isConnected && _uiState.value.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                            val (_, startIndex, mediaItems) = prepareQueueItems(
+                                track = track,
+                                queue = _uiState.value.queue,
+                                sidecarSubtitles = subsSnapshot,
+                            )
+                            val resolvedIdx = targetIndex.coerceIn(0, (mediaItems.size - 1).coerceAtLeast(0))
+                            controller.stop()
+                            controller.setMediaItems(mediaItems, if (mediaItems.isNotEmpty()) resolvedIdx else startIndex, resumePositionMs)
+                            controller.prepare()
+                            controller.play()
+                        }
+                    }.onFailure { err ->
+                        val fallbackMsg = PlaybackDiagnostics.formatUserErrorMessage(
+                            trackName = track.title,
+                            errorCodeName = error.errorCodeName,
+                            diagnosticDetail = err.message,
+                            fallbackTried = true,
                         )
-                        val resolvedIdx = targetIndex.coerceIn(0, (mediaItems.size - 1).coerceAtLeast(0))
-                        controller.setMediaItems(mediaItems, if (mediaItems.isNotEmpty()) resolvedIdx else startIndex, resumePositionMs)
-                        controller.prepare()
-                        controller.play()
+                        _uiState.update { it.copy(errorMessage = fallbackMsg, isPlaying = false, isBuffering = false) }
                     }
                 }, androidx.core.content.ContextCompat.getMainExecutor(context))
                 return

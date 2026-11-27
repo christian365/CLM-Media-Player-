@@ -8,7 +8,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class PlaybackFallbackTest {
 
     @Test
@@ -74,5 +79,61 @@ class PlaybackFallbackTest {
         assertTrue(message.contains("01. Haikyuu!! 2 [T4TSA.cc]"))
         assertTrue(message.contains("video/hevc 1920x1080"))
         assertTrue(message.contains("c2.qti.hevc.decoder"))
+    }
+
+    @Test
+    fun `ffmpeg audio preference bypasses MediaCodec only for supported audio mimes`() {
+        val fakeCodec = androidx.media3.exoplayer.mediacodec.MediaCodecInfo.newInstance(
+            "c2.android.aac.decoder",
+            "audio/mp4a-latm",
+            "audio/mp4a-latm",
+            null,
+            false,
+            true,
+            false,
+            false,
+            false,
+        )
+        val fakeVideoCodec = androidx.media3.exoplayer.mediacodec.MediaCodecInfo.newInstance(
+            "c2.android.hevc.decoder",
+            "video/hevc",
+            "video/hevc",
+            null,
+            false,
+            true,
+            false,
+            false,
+            false,
+        )
+        val baseSelector = androidx.media3.exoplayer.mediacodec.MediaCodecSelector { mime, _, _ ->
+            when (mime) {
+                "audio/mp4a-latm" -> listOf(fakeCodec)
+                "video/hevc" -> listOf(fakeVideoCodec)
+                else -> emptyList()
+            }
+        }
+        val selector = FallbackMediaCodecSelector(
+            baseSelector = baseSelector,
+            softwareSelector = baseSelector,
+            isFfmpegAudioSupported = { it == "audio/mp4a-latm" },
+        ).apply {
+            preferFfmpegAudio = true
+        }
+
+        assertTrue(selector.getDecoderInfos("audio/mp4a-latm", false, false).isEmpty())
+        assertEquals(1, selector.getDecoderInfos("video/hevc", false, false).size)
+    }
+
+    @Test
+    fun `extractFromPlayerError safely classifies audio vs video errors`() {
+        val audioErr = PlaybackException(
+            "audio sink error",
+            null,
+            PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
+        )
+        val extracted = PlaybackDiagnostics.extractFromPlayerError(audioErr)
+        assertTrue(extracted.isAudioFailure)
+        assertTrue(PlaybackDiagnostics.isAudioErrorCode(PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED))
+        assertFalse(PlaybackDiagnostics.isAudioErrorCode(PlaybackException.ERROR_CODE_DECODING_FAILED))
     }
 }

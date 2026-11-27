@@ -1,8 +1,10 @@
 package com.example.playback
 
 import androidx.annotation.OptIn
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
@@ -20,10 +22,17 @@ data class CodecCandidate(
 class FallbackMediaCodecSelector(
     private val baseSelector: MediaCodecSelector = MediaCodecSelector.DEFAULT,
     private val softwareSelector: MediaCodecSelector = MediaCodecSelector.PREFER_SOFTWARE,
+    private val isFfmpegAudioSupported: (String) -> Boolean = { mime ->
+        runCatching { FfmpegLibrary.isAvailable() && FfmpegLibrary.supportsFormat(mime) }
+            .getOrDefault(false)
+    },
 ) : MediaCodecSelector {
 
     @Volatile
     var preferSoftwareOnly: Boolean = false
+
+    @Volatile
+    var preferFfmpegAudio: Boolean = false
 
     private val excludedCodecs = CopyOnWriteArraySet<String>()
 
@@ -45,26 +54,29 @@ class FallbackMediaCodecSelector(
         requiresSecureDecoder: Boolean,
         requiresTunnelingDecoder: Boolean,
     ): List<MediaCodecInfo> {
-        val defaultInfos = baseSelector.getDecoderInfos(
-            mimeType,
-            requiresSecureDecoder,
-            requiresTunnelingDecoder,
-        )
-        if (!preferSoftwareOnly && excludedCodecs.isEmpty()) {
-            return defaultInfos
+        if (preferFfmpegAudio && MimeTypes.isAudio(mimeType) && isFfmpegAudioSupported(mimeType)) {
+            return emptyList()
         }
 
-        val fallbackOrderInfos = if (preferSoftwareOnly) {
+        val sourceInfos = if (preferSoftwareOnly) {
             softwareSelector.getDecoderInfos(
                 mimeType,
                 requiresSecureDecoder,
                 requiresTunnelingDecoder,
             )
         } else {
-            defaultInfos
+            baseSelector.getDecoderInfos(
+                mimeType,
+                requiresSecureDecoder,
+                requiresTunnelingDecoder,
+            )
         }
 
-        val candidates = fallbackOrderInfos.map {
+        if (!preferSoftwareOnly && excludedCodecs.isEmpty()) {
+            return sourceInfos
+        }
+
+        val candidates = sourceInfos.map {
             CodecCandidate(
                 name = it.name,
                 hardwareAccelerated = it.hardwareAccelerated,
@@ -77,9 +89,9 @@ class FallbackMediaCodecSelector(
             excludedCodecNames = excludedCodecs,
         )
 
-        val infoByName = fallbackOrderInfos.associateBy { it.name }
+        val infoByName = sourceInfos.associateBy { it.name }
         val reordered = selectedNames.mapNotNull { infoByName[it] }
-        return if (reordered.isNotEmpty()) reordered else fallbackOrderInfos
+        return if (reordered.isNotEmpty()) reordered else sourceInfos
     }
 
     companion object {
@@ -132,6 +144,7 @@ object PlaybackDiagnostics {
     data class ExtractedFailure(
         val failedCodecName: String? = null,
         val detailMessage: String? = null,
+        val isAudioFailure: Boolean = false,
     )
 
     fun isRecoverableCodecErrorCode(errorCode: Int): Boolean {
@@ -146,43 +159,65 @@ object PlaybackDiagnostics {
         }
     }
 
+    fun isAudioErrorCode(errorCode: Int): Boolean {
+        return errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
+            errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
+    }
+
     @OptIn(UnstableApi::class)
     fun extractFromPlayerError(error: PlaybackException): ExtractedFailure {
-        val causeChain = generateSequence<Throwable>(error) { it.cause }.toList()
-
-        val codecDecoderEx = causeChain
-            .filterIsInstance<MediaCodecDecoderException>()
-            .firstOrNull()
-        val initEx = causeChain
-            .filterIsInstance<MediaCodecRenderer.DecoderInitializationException>()
-            .firstOrNull()
-        val exoEx = error as? ExoPlaybackException
-
-        val failedCodecName = codecDecoderEx?.codecInfo?.name
-            ?: initEx?.codecInfo?.name
-        val formatMime = exoEx?.rendererFormat?.sampleMimeType
-            ?: initEx?.mimeType
-            ?: codecDecoderEx?.codecInfo?.mimeType
-        val width = exoEx?.rendererFormat?.width ?: -1
-        val height = exoEx?.rendererFormat?.height ?: -1
-        val codecsStr = exoEx?.rendererFormat?.codecs?.takeIf { it.isNotBlank() }
-
-        val parts = buildList {
-            if (!formatMime.isNullOrBlank()) {
-                val res = if (width > 0 && height > 0) " ${width}x${height}" else ""
-                val profile = if (codecsStr != null) " ($codecsStr)" else ""
-                add("$formatMime$res$profile")
+        return runCatching {
+            val causeChain = mutableListOf<Throwable>()
+            val visited = HashSet<Throwable>()
+            var cur: Throwable? = error
+            while (cur != null && visited.add(cur) && causeChain.size < 16) {
+                causeChain.add(cur)
+                cur = cur.cause
             }
-            if (!failedCodecName.isNullOrBlank()) {
-                add("decoder: $failedCodecName")
+
+            val codecDecoderEx = causeChain
+                .filterIsInstance<MediaCodecDecoderException>()
+                .firstOrNull()
+            val initEx = causeChain
+                .filterIsInstance<MediaCodecRenderer.DecoderInitializationException>()
+                .firstOrNull()
+            val exoEx = error as? ExoPlaybackException
+
+            val failedCodecName = codecDecoderEx?.codecInfo?.name
+                ?: initEx?.codecInfo?.name
+            val formatMime = exoEx?.rendererFormat?.sampleMimeType
+                ?: initEx?.mimeType
+                ?: codecDecoderEx?.codecInfo?.mimeType
+            val width = exoEx?.rendererFormat?.width ?: -1
+            val height = exoEx?.rendererFormat?.height ?: -1
+            val codecsStr = exoEx?.rendererFormat?.codecs?.takeIf { it.isNotBlank() }
+
+            val isAudio = isAudioErrorCode(error.errorCode) ||
+                (formatMime?.startsWith("audio/", ignoreCase = true) == true)
+
+            val parts = buildList {
+                if (!formatMime.isNullOrBlank()) {
+                    val res = if (width > 0 && height > 0) " ${width}x${height}" else ""
+                    val profile = if (codecsStr != null) " ($codecsStr)" else ""
+                    add("$formatMime$res$profile")
+                }
+                if (!failedCodecName.isNullOrBlank()) {
+                    add("decoder: $failedCodecName")
+                }
             }
+
+            ExtractedFailure(
+                failedCodecName = failedCodecName,
+                detailMessage = if (parts.isNotEmpty()) parts.joinToString(" • ") else null,
+                isAudioFailure = isAudio,
+            )
+        }.getOrElse {
+            ExtractedFailure(
+                failedCodecName = null,
+                detailMessage = null,
+                isAudioFailure = isAudioErrorCode(error.errorCode),
+            )
         }
-
-        val detail = if (parts.isNotEmpty()) parts.joinToString(" • ") else null
-        return ExtractedFailure(
-            failedCodecName = failedCodecName,
-            detailMessage = detail,
-        )
     }
 
     fun formatUserErrorMessage(
@@ -193,7 +228,7 @@ object PlaybackDiagnostics {
     ): String {
         val base = "Unable to decode \"$trackName\" ($errorCodeName)."
         val hint = if (fallbackTried) {
-            "Hardware and device software decoders could not decode this stream (common with 10-bit Hi10P or corrupted frames)."
+            "Hardware and device software decoders could not decode this stream (common with 10-bit Hi10P or unsupported profiles)."
         } else {
             "The file may be corrupted or use an unsupported codec."
         }

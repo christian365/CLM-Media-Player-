@@ -30,17 +30,14 @@ class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private lateinit var trackSelector: DefaultTrackSelector
     private lateinit var player: ExoPlayer
-    private lateinit var audioAttributes: AudioAttributes
-    private lateinit var extractorsFactory: DefaultExtractorsFactory
 
     private val codecSelector = FallbackMediaCodecSelector()
-    private var extensionPreferActive: Boolean = false
     private var lastFailedCodecName: String? = null
 
     private val servicePlayerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
             lastFailedCodecName = null
-            mediaSession?.setSessionExtras(Bundle.EMPTY)
+            runCatching { mediaSession?.setSessionExtras(Bundle.EMPTY) }
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -51,8 +48,9 @@ class PlaybackService : MediaSessionService() {
             val extras = Bundle().apply {
                 extracted.detailMessage?.let { putString(EXTRA_LAST_ERROR_DETAIL, it) }
                 extracted.failedCodecName?.let { putString(EXTRA_LAST_FAILED_CODEC, it) }
+                putBoolean(EXTRA_LAST_ERROR_IS_AUDIO, extracted.isAudioFailure)
             }
-            mediaSession?.setSessionExtras(extras)
+            runCatching { mediaSession?.setSessionExtras(extras) }
         }
     }
 
@@ -62,8 +60,14 @@ class PlaybackService : MediaSessionService() {
         val app = application as CadenceApplication
         val prefs = runBlocking { app.container.preferencesRepository.preferences.first() }
 
-        extensionPreferActive = prefs.preferExtensionDecoders
-        codecSelector.preferSoftwareOnly = prefs.preferExtensionDecoders
+        codecSelector.preferFfmpegAudio = prefs.preferExtensionDecoders
+        codecSelector.preferSoftwareOnly = false
+
+        val renderersFactory = DefaultRenderersFactory(this).apply {
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            setEnableDecoderFallback(true)
+            setMediaCodecSelector(codecSelector)
+        }
 
         trackSelector = DefaultTrackSelector(this).apply {
             SubtitleOverlayHelper.configureDefaultTextTrackSelection(
@@ -72,15 +76,25 @@ class PlaybackService : MediaSessionService() {
             )
         }
 
-        extractorsFactory = DefaultExtractorsFactory()
+        val extractorsFactory = DefaultExtractorsFactory()
             .setConstantBitrateSeekingEnabled(true)
 
-        audioAttributes = AudioAttributes.Builder()
+        val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        player = buildExoPlayer(extensionPreferActive)
+        player = ExoPlayer.Builder(this, renderersFactory)
+            .setTrackSelector(trackSelector)
+            .setMediaSourceFactory(
+                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this, extractorsFactory)
+            )
+            .setAudioAttributes(audioAttributes, true)
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_LOCAL)
+            .build().apply {
+                addListener(servicePlayerListener)
+            }
 
         val launchIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -96,52 +110,6 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(sessionActivityPendingIntent)
             .setCallback(CadenceSessionCallback())
             .build()
-    }
-
-    private fun buildExoPlayer(preferExtensionDecoders: Boolean): ExoPlayer {
-        val extensionMode = if (preferExtensionDecoders) {
-            DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-        } else {
-            DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
-        }
-
-        val renderersFactory = DefaultRenderersFactory(this).apply {
-            setExtensionRendererMode(extensionMode)
-            setEnableDecoderFallback(true)
-            setMediaCodecSelector(codecSelector)
-        }
-
-        return ExoPlayer.Builder(this, renderersFactory)
-            .setTrackSelector(trackSelector)
-            .setMediaSourceFactory(
-                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this, extractorsFactory)
-            )
-            .setAudioAttributes(audioAttributes, true)
-            .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_LOCAL)
-            .build().apply {
-                addListener(servicePlayerListener)
-            }
-    }
-
-    private fun swapPlayerIfExtensionModeChanged(targetPreferExtension: Boolean) {
-        if (targetPreferExtension == extensionPreferActive) return
-        extensionPreferActive = targetPreferExtension
-        val oldPlayer = player
-        val shuffleEnabled = oldPlayer.shuffleModeEnabled
-        val repeatMode = oldPlayer.repeatMode
-        val playbackParams = oldPlayer.playbackParameters
-        oldPlayer.removeListener(servicePlayerListener)
-        oldPlayer.stop()
-
-        val newPlayer = buildExoPlayer(targetPreferExtension).apply {
-            this.shuffleModeEnabled = shuffleEnabled
-            this.repeatMode = repeatMode
-            this.playbackParameters = playbackParams
-        }
-        player = newPlayer
-        mediaSession?.setPlayer(newPlayer)
-        oldPlayer.release()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
@@ -186,11 +154,9 @@ class PlaybackService : MediaSessionService() {
                     if (args.getBoolean(ARG_EXCLUDE_LAST_FAILED_CODEC, false)) {
                         codecSelector.excludeCodec(lastFailedCodecName)
                     }
-                    val softwareFallback = args.getBoolean(ARG_SOFTWARE_FALLBACK, false)
-                    codecSelector.preferSoftwareOnly = softwareFallback
+                    codecSelector.preferSoftwareOnly = args.getBoolean(ARG_SOFTWARE_FALLBACK, false)
                     if (args.containsKey(ARG_PREFER_EXTENSIONS)) {
-                        val targetPreferExt = args.getBoolean(ARG_PREFER_EXTENSIONS, extensionPreferActive)
-                        swapPlayerIfExtensionModeChanged(targetPreferExt)
+                        codecSelector.preferFfmpegAudio = args.getBoolean(ARG_PREFER_EXTENSIONS, false)
                     }
                     Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                 }
@@ -209,5 +175,6 @@ class PlaybackService : MediaSessionService() {
         const val ARG_RESET_EXCLUSIONS = "reset_exclusions"
         const val EXTRA_LAST_ERROR_DETAIL = "last_error_detail"
         const val EXTRA_LAST_FAILED_CODEC = "last_failed_codec"
+        const val EXTRA_LAST_ERROR_IS_AUDIO = "last_error_is_audio"
     }
 }

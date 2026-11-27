@@ -120,17 +120,17 @@ fun VideoPlayerScreen(
         if (controlsVisible && playbackState.isPlaying && !showSubtitleSheet) { delay(4000L); controlsVisible = false }
     }
 
-    var attachedPlayerView by remember { mutableStateOf<PlayerView?>(null) }
+    val playerViewHolder = remember { arrayOfNulls<PlayerView>(1) }
 
     DisposableEffect(player) {
         onDispose {
-            attachedPlayerView?.player = null
-            attachedPlayerView = null
+            playerViewHolder[0]?.player = null
+            playerViewHolder[0] = null
         }
     }
 
-    LaunchedEffect(attachedPlayerView, player, playbackState.currentTrack?.mediaStoreId) {
-        val view = attachedPlayerView ?: return@LaunchedEffect
+    LaunchedEffect(player, playbackState.currentTrack?.mediaStoreId) {
+        val view = playerViewHolder[0] ?: return@LaunchedEffect
         view.post {
             if (view.player !== player) {
                 view.player = player
@@ -153,10 +153,11 @@ fun VideoPlayerScreen(
                 keepScreenOn = true
                 setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                 this.player = player
-                attachedPlayerView = this
+                playerViewHolder[0] = this
+                post { onVideoSurfaceAttached() }
             }
         }, update = { view ->
-            attachedPlayerView = view
+            playerViewHolder[0] = view
             try {
                 if (view.player !== player) view.player = player
                 view.resizeMode = when (playbackState.videoResizeMode) {
