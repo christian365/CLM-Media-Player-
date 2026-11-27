@@ -76,6 +76,7 @@ fun VideoPlayerScreen(
     onUpdateSubtitlePreset: (SubtitleStylePreset) -> Unit,
     onOpenSpeedSheet: () -> Unit,
     onOpenSleepTimerSheet: () -> Unit,
+    onVideoSurfaceAttached: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (player == null) { onNavigateBack(); return }
@@ -119,10 +120,43 @@ fun VideoPlayerScreen(
         if (controlsVisible && playbackState.isPlaying && !showSubtitleSheet) { delay(4000L); controlsVisible = false }
     }
 
+    var attachedPlayerView by remember { mutableStateOf<PlayerView?>(null) }
+
+    DisposableEffect(player) {
+        onDispose {
+            attachedPlayerView?.player = null
+            attachedPlayerView = null
+        }
+    }
+
+    LaunchedEffect(attachedPlayerView, player, playbackState.currentTrack?.mediaStoreId) {
+        val view = attachedPlayerView ?: return@LaunchedEffect
+        view.post {
+            if (view.player !== player) {
+                view.player = player
+            }
+            onVideoSurfaceAttached()
+        }
+    }
+
     BackHandler { onNavigateBack() }
 
-    VideoGestureOverlay(player = player, modifier = modifier.fillMaxSize().background(Color.Black).testTag("video_player_surface")) {
-        AndroidView(factory = { ctx -> PlayerView(ctx).apply { useController = false; layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT); keepScreenOn = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) } }, update = { view ->
+    VideoGestureOverlay(
+        player = player,
+        onTap = { controlsVisible = !controlsVisible },
+        modifier = modifier.fillMaxSize().background(Color.Black).testTag("video_player_surface"),
+    ) {
+        AndroidView(factory = { ctx ->
+            PlayerView(ctx).apply {
+                useController = false
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                keepScreenOn = true
+                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                this.player = player
+                attachedPlayerView = this
+            }
+        }, update = { view ->
+            attachedPlayerView = view
             try {
                 if (view.player !== player) view.player = player
                 view.resizeMode = when (playbackState.videoResizeMode) {
@@ -133,7 +167,7 @@ fun VideoPlayerScreen(
                     VideoResizeMode.RATIO_4_3 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
                 }
                 SubtitleOverlayHelper.applyStyle(view.subtitleView, preferences.subtitleTextSizeSp, preferences.subtitleStylePreset)
-            } catch (e: Exception) {}
+            } catch (_: Exception) {}
         }, modifier = Modifier.fillMaxSize())
 
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
@@ -201,7 +235,24 @@ fun VideoPlayerScreen(
                         var isDragging by remember { mutableStateOf(false) }
                         var dragFraction by remember { mutableFloatStateOf(0f) }
                         val sliderVal = if (isDragging) dragFraction else (playbackState.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-                        Slider(value = sliderVal, onValueChange = { isDragging = true; dragFraction = it }, onValueChangeFinished = { onSeekTo((dragFraction * duration).toLong()); isDragging = false }, colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary, inactiveTrackColor = Color.White.copy(alpha = 0.28f)), modifier = Modifier.fillMaxWidth())
+                        Slider(
+                            value = sliderVal,
+                            onValueChange = { isDragging = true; dragFraction = it },
+                            onValueChangeFinished = { onSeekTo((dragFraction * duration).toLong()); isDragging = false },
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = Color.White.copy(alpha = 0.28f),
+                            ),
+                            thumb = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(text = "${formatDurationMs(if (isDragging) (dragFraction * duration).toLong() else playbackState.positionMs)} / ${formatDurationMs(playbackState.durationMs)}", style = MaterialTheme.typography.labelMedium, color = Color.White)
                             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -88,6 +88,12 @@ class PlaybackController(
     private var positionTickerJob: Job? = null
     private var lyricsJob: Job? = null
     private var lastCountedTrackId: Long? = null
+    private var pendingStagedVideoId: Long? = null
+    private var isStagedVideoItemsPrepared: Boolean = false
+    private var videoSurfaceReadyForStagedId: Long? = null
+    private var softwareFallbackAttemptedForTrackId: Long? = null
+    private var forcedExtensionFallback: Boolean = false
+    private var userPreferExtensionDecoders: Boolean? = null
 
     private val trackLookup = mutableMapOf<String, MediaTrackEntity>()
 
@@ -113,31 +119,86 @@ class PlaybackController(
         sidecarSubtitles: List<SidecarSubtitle> = emptyList(),
     ) {
         val controller = mediaController ?: return
-        val validQueue = if (queue.any { it.mediaStoreId == track.mediaStoreId }) queue else listOf(track)
-        val startIndex = validQueue.indexOfFirst { it.mediaStoreId == track.mediaStoreId }.coerceAtLeast(0)
-
-        validQueue.forEach { trackLookup[it.mediaStoreId.toString()] = it }
-
-        val mediaItems = validQueue.mapIndexed { index, item ->
-            val subs = if (index == startIndex && item.mediaType == MediaType.VIDEO) sidecarSubtitles else emptyList()
-            buildMediaItem(item, subs)
+        pendingStagedVideoId = null
+        isStagedVideoItemsPrepared = false
+        videoSurfaceReadyForStagedId = null
+        val (validQueue, startIndex, mediaItems) = prepareQueueItems(track, queue, sidecarSubtitles)
+        val prepareBlock = {
+            _uiState.update {
+                it.copy(
+                    queue = validQueue,
+                    currentIndex = startIndex,
+                    currentTrack = track,
+                    sidecarSubtitles = sidecarSubtitles,
+                    errorMessage = null,
+                )
+            }
+            controller.setMediaItems(mediaItems, startIndex, 0L)
+            controller.prepare()
+            controller.play()
+            onTrackSelected(track)
         }
+        resetDecoderModeForNewTrack(track.mediaStoreId, onReady = prepareBlock)
+    }
 
+    fun stageVideoTrack(
+        track: MediaTrackEntity,
+        queue: List<MediaTrackEntity> = listOf(track),
+        sidecarSubtitles: List<SidecarSubtitle> = emptyList(),
+    ) {
+        val controller = mediaController ?: return
+        val (validQueue, startIndex, mediaItems) = prepareQueueItems(track, queue, sidecarSubtitles)
+        pendingStagedVideoId = track.mediaStoreId
+        isStagedVideoItemsPrepared = false
+        videoSurfaceReadyForStagedId = null
         _uiState.update {
             it.copy(
                 queue = validQueue,
                 currentIndex = startIndex,
                 currentTrack = track,
                 sidecarSubtitles = sidecarSubtitles,
+                isBuffering = true,
                 errorMessage = null,
             )
         }
+        resetDecoderModeForNewTrack(track.mediaStoreId) {
+            if (pendingStagedVideoId == track.mediaStoreId) {
+                controller.setMediaItems(mediaItems, startIndex, 0L)
+                isStagedVideoItemsPrepared = true
+                if (videoSurfaceReadyForStagedId == track.mediaStoreId) {
+                    startStagedVideoIfReady()
+                }
+            }
+        }
+    }
 
-        controller.setMediaItems(mediaItems, startIndex, 0L)
+    fun startStagedVideoIfReady() {
+        val stagedId = pendingStagedVideoId ?: return
+        val controller = mediaController ?: return
+        val track = _uiState.value.currentTrack ?: return
+        if (track.mediaStoreId != stagedId) return
+        videoSurfaceReadyForStagedId = stagedId
+        if (!isStagedVideoItemsPrepared) return
+        pendingStagedVideoId = null
+        videoSurfaceReadyForStagedId = null
         controller.prepare()
         controller.play()
-
         onTrackSelected(track)
+    }
+
+    private fun prepareQueueItems(
+        track: MediaTrackEntity,
+        queue: List<MediaTrackEntity>,
+        sidecarSubtitles: List<SidecarSubtitle>,
+    ): Triple<List<MediaTrackEntity>, Int, List<MediaItem>> {
+        val validQueue = if (queue.any { it.mediaStoreId == track.mediaStoreId }) queue else listOf(track)
+        val startIndex = validQueue.indexOfFirst { it.mediaStoreId == track.mediaStoreId }.coerceAtLeast(0)
+        validQueue.forEach { trackLookup[it.mediaStoreId.toString()] = it }
+        val mediaItems = validQueue.mapIndexed { index, item ->
+            val subs = if (index == startIndex && item.mediaType == MediaType.VIDEO) sidecarSubtitles else emptyList()
+            buildMediaItem(item, subs)
+        }
+        return Triple(validQueue, startIndex, mediaItems)
     }
 
     fun attachSidecarSubtitleToCurrentVideo(subtitle: SidecarSubtitle) {
@@ -301,6 +362,49 @@ class PlaybackController(
         controller.sendCustomCommand(SessionCommand(PlaybackService.CMD_SUBTITLE_DEFAULT, Bundle.EMPTY), args)
     }
 
+    fun setPreferExtensionDecoders(prefer: Boolean) {
+        userPreferExtensionDecoders = prefer
+        forcedExtensionFallback = false
+        val controller = mediaController ?: return
+        val args = Bundle().apply {
+            putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, prefer)
+            putBoolean(PlaybackService.ARG_PREFER_EXTENSIONS, prefer)
+            putBoolean(PlaybackService.ARG_RESET_EXCLUSIONS, true)
+        }
+        controller.sendCustomCommand(SessionCommand(PlaybackService.CMD_SET_DECODER_MODE, Bundle.EMPTY), args)
+    }
+
+    private fun resetDecoderModeForNewTrack(trackId: Long, onReady: () -> Unit) {
+        val needsReset = softwareFallbackAttemptedForTrackId != null || forcedExtensionFallback
+        if (softwareFallbackAttemptedForTrackId != trackId) {
+            softwareFallbackAttemptedForTrackId = null
+        }
+        if (!needsReset) {
+            onReady()
+            return
+        }
+        val controller = mediaController
+        if (controller == null) {
+            onReady()
+            return
+        }
+        val preferExt = userPreferExtensionDecoders ?: false
+        val wasForcedExt = forcedExtensionFallback
+        forcedExtensionFallback = false
+        val args = Bundle().apply {
+            putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, preferExt)
+            putBoolean(PlaybackService.ARG_RESET_EXCLUSIONS, true)
+            if (wasForcedExt) {
+                putBoolean(PlaybackService.ARG_PREFER_EXTENSIONS, preferExt)
+            }
+        }
+        val future = controller.sendCustomCommand(
+            SessionCommand(PlaybackService.CMD_SET_DECODER_MODE, Bundle.EMPTY),
+            args,
+        )
+        future.addListener({ onReady() }, androidx.core.content.ContextCompat.getMainExecutor(context))
+    }
+
     fun cycleVideoResizeMode() {
         val modes = VideoResizeMode.entries
         val nextIdx = (modes.indexOf(_uiState.value.videoResizeMode) + 1) % modes.size
@@ -333,7 +437,6 @@ class PlaybackController(
         return MediaItem.Builder()
             .setMediaId(track.mediaStoreId.toString())
             .setUri(Uri.parse(track.contentUri))
-            .setMimeType(track.mimeType.takeIf { it.isNotBlank() && !it.endsWith("/*") })
             .setMediaMetadata(metadata)
             .setSubtitleConfigurations(subtitleConfigs)
             .build()
@@ -493,9 +596,61 @@ class PlaybackController(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            val trackName = _uiState.value.currentTrack?.title ?: "Media file"
-            val msg = "Unable to decode \"$trackName\" (${error.errorCodeName}). The file may be corrupted or use an unsupported codec."
-            _uiState.update { it.copy(errorMessage = msg, isPlaying = false) }
+            val controller = mediaController
+            val currentState = _uiState.value
+            val track = currentState.currentTrack
+
+            if (
+                controller != null &&
+                track != null &&
+                PlaybackDiagnostics.isRecoverableCodecErrorCode(error.errorCode) &&
+                softwareFallbackAttemptedForTrackId != track.mediaStoreId
+            ) {
+                softwareFallbackAttemptedForTrackId = track.mediaStoreId
+                forcedExtensionFallback = true
+                val resumePositionMs = controller.currentPosition.coerceAtLeast(0L)
+                val targetIndex = controller.currentMediaItemIndex
+                    .takeIf { it in currentState.queue.indices }
+                    ?: currentState.currentIndex.coerceAtLeast(0)
+                val subsSnapshot = currentState.sidecarSubtitles
+
+                _uiState.update { it.copy(isBuffering = true, errorMessage = null) }
+
+                val args = Bundle().apply {
+                    putBoolean(PlaybackService.ARG_SOFTWARE_FALLBACK, true)
+                    putBoolean(PlaybackService.ARG_PREFER_EXTENSIONS, true)
+                    putBoolean(PlaybackService.ARG_EXCLUDE_LAST_FAILED_CODEC, true)
+                }
+                val future = controller.sendCustomCommand(
+                    SessionCommand(PlaybackService.CMD_SET_DECODER_MODE, Bundle.EMPTY),
+                    args,
+                )
+                future.addListener({
+                    if (_uiState.value.currentTrack?.mediaStoreId == track.mediaStoreId) {
+                        val (_, startIndex, mediaItems) = prepareQueueItems(
+                            track = track,
+                            queue = _uiState.value.queue,
+                            sidecarSubtitles = subsSnapshot,
+                        )
+                        val resolvedIdx = targetIndex.coerceIn(0, (mediaItems.size - 1).coerceAtLeast(0))
+                        controller.setMediaItems(mediaItems, if (mediaItems.isNotEmpty()) resolvedIdx else startIndex, resumePositionMs)
+                        controller.prepare()
+                        controller.play()
+                    }
+                }, androidx.core.content.ContextCompat.getMainExecutor(context))
+                return
+            }
+
+            val trackName = track?.title ?: "Media file"
+            val diagnosticDetail = controller?.sessionExtras?.getString(PlaybackService.EXTRA_LAST_ERROR_DETAIL)
+            val fallbackTried = track != null && softwareFallbackAttemptedForTrackId == track.mediaStoreId
+            val msg = PlaybackDiagnostics.formatUserErrorMessage(
+                trackName = trackName,
+                errorCodeName = error.errorCodeName,
+                diagnosticDetail = diagnosticDetail,
+                fallbackTried = fallbackTried,
+            )
+            _uiState.update { it.copy(errorMessage = msg, isPlaying = false, isBuffering = false) }
         }
     }
 

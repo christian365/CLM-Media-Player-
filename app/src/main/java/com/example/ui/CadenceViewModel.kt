@@ -176,7 +176,7 @@ class CadenceViewModel(
     fun playVideo(video: MediaTrackEntity, onReady: () -> Unit = {}) {
         viewModelScope.launch {
             val sidecars = sidecarFinder.findMatchingSubtitles(video)
-            playbackController.playTrack(
+            playbackController.stageVideoTrack(
                 track = video,
                 queue = listOf(video),
                 sidecarSubtitles = sidecars,
@@ -290,7 +290,10 @@ class CadenceViewModel(
     }
 
     fun setPreferExtensionDecoders(prefer: Boolean) {
-        viewModelScope.launch { preferencesRepo.setPreferExtensionDecoders(prefer) }
+        viewModelScope.launch {
+            preferencesRepo.setPreferExtensionDecoders(prefer)
+            playbackController.setPreferExtensionDecoders(prefer)
+        }
     }
 
     class Factory(private val container: AppContainer) : ViewModelProvider.Factory {

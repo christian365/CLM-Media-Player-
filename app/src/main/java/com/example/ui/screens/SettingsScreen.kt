@@ -114,7 +114,7 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Prefer FFmpeg Extension Decoders", style = MaterialTheme.typography.titleSmall)
                         Text(
-                            "When off, hardware MediaCodec runs first with automatic FFmpeg software fallback (takes effect on service restart).",
+                            "When off, hardware MediaCodec runs first with automatic software and FFmpeg fallback. Takes effect immediately.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

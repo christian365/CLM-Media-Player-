@@ -323,6 +323,7 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
                 onSelectSubtitleTrack = viewModel::selectSubtitleTrack, onPickSidecarSubtitleUri = viewModel::pickSidecarSubtitleUri,
                 onUpdateSubtitleSize = viewModel::setSubtitleTextSizeSp, onUpdateSubtitlePreset = viewModel::setSubtitleStylePreset,
                 onOpenSpeedSheet = { showSpeedPitchSheet = true }, onOpenSleepTimerSheet = { showSleepSheet = true },
+                onVideoSurfaceAttached = viewModel.playbackController::startStagedVideoIfReady,
               )
             }
           }
@@ -330,7 +331,7 @@ private fun CadenceRoot(viewModel: CadenceViewModel, useNavRail: Boolean) {
             MiniPlayerBar(playbackState = playbackState, artworkLoader = viewModel.artworkLoader, onOpenNowPlaying = { navController.navigate(RouteNowPlaying) }, onTogglePlayPause = viewModel.playbackController::togglePlayPause, onSkipNext = viewModel.playbackController::skipToNext, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp))
           }
           playbackState.errorMessage?.let { errorMsg ->
-            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.88f), tonalElevation = 6.dp, modifier = Modifier.align(Alignment.TopCenter).padding(14.dp).fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), RoundedCornerShape(14.dp))) {
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.88f), tonalElevation = 6.dp, modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(14.dp).fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), RoundedCornerShape(14.dp))) {
               Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
                 Text(text = errorMsg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.weight(1f))

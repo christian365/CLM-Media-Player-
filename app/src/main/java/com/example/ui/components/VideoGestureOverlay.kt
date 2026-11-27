@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,7 @@ private data class OsdState(val icon: ImageVector, val label: String, val visibl
 fun VideoGestureOverlay(
     player: Player,
     modifier: Modifier = Modifier,
+    onTap: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -64,7 +66,13 @@ fun VideoGestureOverlay(
 
     Box(modifier = modifier.fillMaxSize()) {
         content()
-        Box(Modifier.fillMaxSize().pointerInput(player) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(onTap) {
+                    detectTapGestures(onTap = { onTap() })
+                }
+                .pointerInput(player) {
             var axis = Axis.NONE
             var side: Side = Side.LEFT
             var startBrightness = 0.5f
