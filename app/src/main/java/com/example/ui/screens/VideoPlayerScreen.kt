@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,9 +37,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.example.R
@@ -73,18 +75,29 @@ fun VideoPlayerScreen(
     onOpenSleepTimerSheet: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (player == null) {
-        onNavigateBack()
-        return
-    }
+    if (player == null) { onNavigateBack(); return }
 
     val context = LocalContext.current
     val activity = context as? Activity
+    val lifecycleOwner = LocalLifecycleOwner.current
     var controlsVisible by remember { mutableStateOf(true) }
     var showSubtitleSheet by remember { mutableStateOf(false) }
     var isLandscapeForced by remember { mutableStateOf(false) }
     var selectedTrack by remember { mutableStateOf<SubtitleTrackOption?>(null) }
     val subtitlePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? -> if (uri != null) onPickSidecarSubtitleUri(uri) }
+
+    // Stop video when app goes to background
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                if (!playbackState.currentTrack?.let { it.mediaType == com.example.data.local.MediaType.AUDIO }!!) {
+                    player.pause()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -117,9 +130,7 @@ fun VideoPlayerScreen(
                     VideoResizeMode.RATIO_4_3 -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
                 }
                 SubtitleOverlayHelper.applyStyle(view.subtitleView, preferences.subtitleTextSizeSp, preferences.subtitleStylePreset)
-            } catch (e: Exception) {
-                // Silently ignore UI update errors
-            }
+            } catch (e: Exception) {}
         }, modifier = Modifier.fillMaxSize())
 
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
